@@ -121,21 +121,17 @@ def _filter_2_delta_limit(torque_cmd: float, filtered_torque: float, v_ego: floa
   error = float(torque_cmd) - float(filtered_torque)
   abs_error = abs(error)
   sign_change = float(torque_cmd) * float(filtered_torque) < 0.0
-  unwinding = abs(float(torque_cmd)) < abs(float(filtered_torque))
 
   low_speed_factor = float(np.interp(v_ego,
                                      [0.0, 10.0 * CV.MPH_TO_MS, 25.0 * CV.MPH_TO_MS],
-                                     [0.70, 0.85, 1.00]))
+                                     [0.45, 0.65, 1.00]))
 
   max_delta = float(np.interp(abs_error,
                               [0.000, 0.025, 0.100, 0.300, 1.000],
-                              [0.004, 0.010, 0.030, 0.090, 0.180]))
-
-  if unwinding:
-    max_delta = max(max_delta, 0.060)
+                              [0.003, 0.006, 0.018, 0.055, 0.140]))
 
   if sign_change:
-    max_delta = max(max_delta, 0.120)
+    max_delta = max(max_delta, 0.080)
 
   max_delta *= low_speed_factor
   return float(filtered_torque) + float(np.clip(error, -max_delta, max_delta))
@@ -362,8 +358,8 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
 
         if self.CP.carFingerprint in HONDA_BOSCH:
           if (accel < 0) and (CS.out.vEgo > 1e-3):
-            brake_addon = self.brake_pid.update(error=accel - CS.out.aEgo, speed=CS.out.vEgo)
-            targetaccel = min(accel, accel + brake_addon)
+            brake_addon = self.brake_pid.update(error = accel - CS.out.aEgo, speed = CS.out.vEgo)
+            targetaccel = min(accel,accel + brake_addon)
           else:
             self.brake_pid.reset()
             targetaccel = accel
