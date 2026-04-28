@@ -121,7 +121,7 @@ def _driver_override_speed_factor(v_ego: float) -> float:
 
 def _torque_lpf_tau(torque_cmd: float, prev_torque_cmd: float, v_ego: float) -> float:
   if v_ego > 0.0 * CV.MPH_TO_MS:
-    return 0.2
+    return 0.0
 
   torque_delta = abs(float(torque_cmd) - float(prev_torque_cmd))
   sign_change = (float(torque_cmd) * float(prev_torque_cmd)) < 0.0
