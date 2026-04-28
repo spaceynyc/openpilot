@@ -14,9 +14,9 @@ from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
 
-KP = 0.5
-KF = 0.5
-KI = 0.1
+KP = 0.85
+KF = 0.70
+KI = 0.08
 KD = 0.0
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
