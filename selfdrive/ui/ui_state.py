@@ -12,7 +12,7 @@ from openpilot.selfdrive.ui.lib.prime_state import PrimeState
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.hardware import HARDWARE, PC
 
-from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP, DeviceSP
+from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP, DeviceSP, manual_honda_alpha_long_available
 
 BACKLIGHT_OFFROAD = 65 if HARDWARE.get_device_type() == "mici" else 50
 
@@ -184,10 +184,14 @@ class UIState(UIStateSP):
     CP_bytes = self.params.get("CarParamsPersistent")
     if CP_bytes is not None:
       self.CP = messaging.log_from_bytes(CP_bytes, car.CarParams)
-      if self.CP.alphaLongitudinalAvailable:
+      if self.CP.alphaLongitudinalAvailable or manual_honda_alpha_long_available(self.params):
         self.has_longitudinal_control = self.params.get_bool("AlphaLongitudinalEnabled")
       else:
         self.has_longitudinal_control = self.CP.openpilotLongitudinalControl
+    elif manual_honda_alpha_long_available(self.params):
+      self.has_longitudinal_control = self.params.get_bool("AlphaLongitudinalEnabled")
+    else:
+      self.has_longitudinal_control = False
     UIStateSP.update_params(self)
     self._param_update_time = time.monotonic()
 

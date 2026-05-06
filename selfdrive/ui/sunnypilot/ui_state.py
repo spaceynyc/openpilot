@@ -16,6 +16,17 @@ OpenpilotState = log.SelfdriveState.OpenpilotState
 MADSState = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
 
 ONROAD_BRIGHTNESS_TIMER_PAUSED = -1
+HONDA_ALPHA_LONG_PLATFORMS = frozenset({
+  "HONDA_INSIGHT",
+})
+
+
+def manual_honda_alpha_long_available(params: Params) -> bool:
+  bundle = params.get("CarPlatformBundle")
+  if not isinstance(bundle, dict):
+    return False
+
+  return bundle.get("brand") == "honda" and bundle.get("platform") in HONDA_ALPHA_LONG_PLATFORMS
 
 
 class OnroadTimerStatus(Enum):
@@ -169,7 +180,7 @@ class UIStateSP:
         self.params.remove("NeuralNetworkLateralControl")
 
       # Alpha longitudinal: clear if not available or on release branch
-      if not CP.alphaLongitudinalAvailable or self.params.get_bool("IsReleaseBranch"):
+      if (not CP.alphaLongitudinalAvailable and not manual_honda_alpha_long_available(self.params)) or self.params.get_bool("IsReleaseBranch"):
         self.params.remove("AlphaLongitudinalEnabled")
 
       # BSM not available: clear BSM-dependent settings
@@ -179,7 +190,8 @@ class UIStateSP:
       # No CarParams: clear all car-dependent params as safety default
       self.params.remove("EnforceTorqueControl")
       self.params.remove("NeuralNetworkLateralControl")
-      self.params.remove("AlphaLongitudinalEnabled")
+      if not manual_honda_alpha_long_available(self.params):
+        self.params.remove("AlphaLongitudinalEnabled")
 
     # No longitudinal control: no experimental mode
     if not has_long:

@@ -5,6 +5,7 @@ from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog, BigInputDialog
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.layouts.settings.common import restart_needed_callback
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.sunnypilot.ui_state import manual_honda_alpha_long_available
 from openpilot.selfdrive.ui.widgets.ssh_key import SshKeyFetcher
 
 
@@ -121,8 +122,9 @@ class DeveloperLayoutMici(NavScroller):
     ui_state.update_params()
 
     # CP gating
+    manual_alpha_avail = manual_honda_alpha_long_available(ui_state.params)
     if ui_state.CP is not None:
-      alpha_avail = ui_state.CP.alphaLongitudinalAvailable
+      alpha_avail = ui_state.CP.alphaLongitudinalAvailable or manual_alpha_avail
       if not alpha_avail or ui_state.is_release:
         self._alpha_long_toggle.set_visible(False)
         ui_state.params.remove("AlphaLongitudinalEnabled")
@@ -140,7 +142,7 @@ class DeveloperLayoutMici(NavScroller):
     else:
       self._long_maneuver_toggle.set_enabled(False)
       self._lat_maneuver_toggle.set_enabled(False)
-      self._alpha_long_toggle.set_visible(False)
+      self._alpha_long_toggle.set_visible(manual_alpha_avail and not ui_state.is_release)
 
     # Refresh toggles from params to mirror external changes
     for key, item in self._refresh_toggles:
