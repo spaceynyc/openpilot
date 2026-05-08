@@ -18,9 +18,9 @@ except ImportError:
 
 # PID speed breakpoints use m/s.
 # Hold kp at 1.0 below 20 mph, then step down to 0.5 above 20 mph.
-KP = 0.8
+KP = 0.65
 KF = 1.0
-KI = 0.1
+KI = 0.07
 KD = 0.0
 
 LOW_SPEED_X = [0.0, 10.0, 20.0, 30.0]
