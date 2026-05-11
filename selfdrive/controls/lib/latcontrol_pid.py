@@ -72,7 +72,9 @@ class LatControlPID(LatControl):
                              pos_limit=self.steer_max, neg_limit=-self.steer_max)
     self.ff_factor = CP.lateralTuning.pid.kf
     self.get_steer_feedforward = CI.get_steer_feedforward_function()
-    self.is_civic_bosch_modified = CP.carFingerprint == HONDA.HONDA_CIVIC_BOSCH and bool(CP.flags & HondaFlags.EPS_MODIFIED)
+    eps_modified = bool(CP.flags & HondaFlags.EPS_MODIFIED)
+    self.is_civic_bosch_modified = CP.carFingerprint == HONDA.HONDA_CIVIC_BOSCH and eps_modified
+    self.use_modified_eps_steering_filter = CP.carFingerprint in (HONDA.HONDA_CIVIC_BOSCH, HONDA.HONDA_INSIGHT) and eps_modified
     self.prev_angle_steers_des_no_offset = 0.0
     self.modified_civic_steering_pressed_filter_s = 0.0
     self.modified_civic_steering_pressed_prev = False
@@ -101,7 +103,7 @@ class LatControlPID(LatControl):
       # offset does not contribute to resistive torque
       ff = self.ff_factor * self.get_steer_feedforward(angle_steers_des_no_offset, CS.vEgo)
       steering_pressed = CS.steeringPressed
-      if self.is_civic_bosch_modified:
+      if self.use_modified_eps_steering_filter:
         self.modified_civic_steering_pressed_filter_s, steering_pressed = get_civic_bosch_modified_steering_pressed(
           bool(CS.steeringPressed),
           float(getattr(CS, "steeringTorque", 0.0)),

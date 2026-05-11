@@ -230,8 +230,8 @@ class CarController(CarControllerBase):
     self.bosch_wind_factor_before_brake = 0.0
     self.pitch = 0.0
 
-  def _modified_civic_standard_active(self) -> bool:
-    return self.CP.carFingerprint == CAR.HONDA_CIVIC_BOSCH and bool(self.CP.flags & HondaFlags.EPS_MODIFIED)
+  def _modified_eps_standard_active(self) -> bool:
+    return self.CP.carFingerprint in (CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_INSIGHT) and bool(self.CP.flags & HondaFlags.EPS_MODIFIED)
 
   def _filtered_steering_pressed(self, CS, torque_cmd: float) -> bool:
     self.steering_pressed_filter_s, steering_pressed = get_civic_bosch_modified_steering_pressed(
@@ -262,7 +262,7 @@ class CarController(CarControllerBase):
 
     torque_cmd = float(actuators.torque)
     filtered_steering_pressed = bool(CS.out.steeringPressed)
-    if self._modified_civic_standard_active():
+    if self._modified_eps_standard_active():
       if CC.latActive:
         filtered_steering_pressed = self._filtered_steering_pressed(CS, torque_cmd)
         if filtered_steering_pressed:
