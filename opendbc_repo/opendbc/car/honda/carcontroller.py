@@ -386,7 +386,10 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
         ts = self.frame * DT_CTRL
 
         if self.CP.carFingerprint in HONDA_BOSCH:
-          if (accel < 0) and (CS.out.vEgo > 1e-3):
+          # The Insight's Bosch longitudinal path already receives a planned
+          # decel target. Adding an extra brake PID on top made braking feel
+          # stabby when actual decel lagged the request.
+          if (self.CP.carFingerprint != CAR.HONDA_INSIGHT) and (accel < 0) and (CS.out.vEgo > 1e-3):
             brake_addon = self.brake_pid.update(error=accel - CS.out.aEgo, speed=CS.out.vEgo)
             targetaccel = min(accel, accel + brake_addon)
           else:
