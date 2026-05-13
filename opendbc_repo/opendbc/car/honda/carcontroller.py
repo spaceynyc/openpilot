@@ -9,6 +9,7 @@ from opendbc.car.honda.values import CAR, CruiseButtons, HONDA_BOSCH, HONDA_BOSC
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.common.pid import PIDController
 from opendbc.car.common.conversions import Conversions as CV
+from openpilot.common.params import Params
 
 from opendbc.sunnypilot.car.honda.mads import MadsCarController
 from opendbc.sunnypilot.car.honda.gas_interceptor import GasInterceptorCarController
@@ -17,8 +18,15 @@ from opendbc.sunnypilot.car.honda.values_ext import HondaFlagsSP
 
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 LongCtrlState = structs.CarControl.Actuators.LongControlState
+ButtonType = structs.CarState.ButtonEvent.Type
 
 _BRAKE_MODIFIER = 0.0
+CUSTOM_ACC_BUTTONS = {
+  ButtonType.accelCruise: CruiseButtons.RES_ACCEL,
+  ButtonType.decelCruise: CruiseButtons.DECEL_SET,
+}
+CUSTOM_ACC_LONG_PRESS_FRAMES = 50
+CUSTOM_ACC_SEND_INTERVAL_FRAMES = 6
 
 
 def compute_gb_honda_bosch(accel, speed):
@@ -208,6 +216,64 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
                                    neg_limit=-2.0,
                                    rate=50)
     self.brake_pid.reset()
+
+    self.op_params = Params()
+    self.custom_acc_enabled = False
+    self.custom_acc_short_increment = 1
+    self.custom_acc_pending_button = None
+    self.custom_acc_pending_presses = 0
+    self.custom_acc_last_send_frame = -CUSTOM_ACC_SEND_INTERVAL_FRAMES
+    self.custom_acc_button_timers = {ButtonType.accelCruise: 0, ButtonType.decelCruise: 0}
+
+  def _read_custom_acc_params(self) -> None:
+    if self.frame % 100 != 0:
+      return
+
+    self.custom_acc_enabled = self.op_params.get_bool("CustomAccIncrementsEnabled")
+    try:
+      self.custom_acc_short_increment = int(self.op_params.get("CustomAccShortPressIncrement", return_default=True))
+    except (TypeError, ValueError):
+      self.custom_acc_short_increment = 1
+
+    self.custom_acc_short_increment = int(np.clip(self.custom_acc_short_increment, 1, 10))
+
+  def _stock_acc_custom_interval_commands(self, CS, can_sends) -> None:
+    self._read_custom_acc_params()
+
+    if self.CP.openpilotLongitudinalControl or not self.custom_acc_enabled:
+      self.custom_acc_pending_button = None
+      self.custom_acc_pending_presses = 0
+      return
+
+    for button_type in self.custom_acc_button_timers:
+      if self.custom_acc_button_timers[button_type] > 0:
+        self.custom_acc_button_timers[button_type] += 1
+
+    for event in CS.out.buttonEvents:
+      if event.type not in self.custom_acc_button_timers:
+        continue
+
+      if event.pressed:
+        self.custom_acc_button_timers[event.type] = 1
+      else:
+        held_frames = self.custom_acc_button_timers[event.type]
+        self.custom_acc_button_timers[event.type] = 0
+
+        if 0 < held_frames < CUSTOM_ACC_LONG_PRESS_FRAMES:
+          self.custom_acc_pending_button = CUSTOM_ACC_BUTTONS[event.type]
+          # The physical button press already changed stock ACC once.
+          self.custom_acc_pending_presses = max(0, self.custom_acc_short_increment - 1)
+          self.custom_acc_last_send_frame = self.frame
+
+    if self.custom_acc_pending_presses <= 0 or self.custom_acc_pending_button is None:
+      return
+
+    if (self.frame - self.custom_acc_last_send_frame) >= CUSTOM_ACC_SEND_INTERVAL_FRAMES:
+      can_sends.append(hondacan.spam_buttons_command(
+        self.packer, self.CAN, self.custom_acc_pending_button, self.CP.carFingerprint
+      ))
+      self.custom_acc_pending_presses -= 1
+      self.custom_acc_last_send_frame = self.frame
 
   def _filtered_steering_pressed(self, CS, torque_cmd: float) -> bool:
     raw_pressed = bool(CS.out.steeringPressed)
@@ -478,6 +544,8 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
             can_sends.extend(GasInterceptorCarController.update(
               self, CC, CS, gas, brake, wind_brake, self.packer, self.frame
             ))
+
+    self._stock_acc_custom_interval_commands(CS, can_sends)
 
     if self.frame % 10 == 0:
       if CC.longActive and (self.CP.carFingerprint in (CAR.ACURA_MDX_3G, CAR.ACURA_MDX_3G_MMR)):

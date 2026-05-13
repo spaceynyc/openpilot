@@ -148,11 +148,10 @@ class CruiseLayout(Widget):
         self.scc_v_toggle.action_item.set_enabled(True)
         self.scc_m_toggle.action_item.set_enabled(True)
       else:
-        ui_state.params.remove("CustomAccIncrementsEnabled")
         ui_state.params.remove("DynamicExperimentalControl")
         ui_state.params.remove("SmartCruiseControlVision")
         ui_state.params.remove("SmartCruiseControlMap")
-        self.custom_acc_toggle.action_item.set_enabled(False)
+        self.custom_acc_toggle.action_item.set_enabled(ui_state.CP.pcmCruise and ui_state.is_offroad())
         self.dec_toggle.action_item.set_enabled(False)
         self.scc_v_toggle.action_item.set_enabled(False)
         self.scc_m_toggle.action_item.set_enabled(False)
@@ -175,9 +174,10 @@ class CruiseLayout(Widget):
         else:
           new_custom_acc_desc = tr(ACC_ENABLED_DESCRIPTION)
       else:
-        new_custom_acc_desc = tr(ACC_NOLONG_DESCRIPTION)
+        new_custom_acc_desc = tr(ACC_ENABLED_DESCRIPTION) if ui_state.CP and ui_state.CP.pcmCruise else tr(ACC_NOLONG_DESCRIPTION)
         show_custom_acc_desc = True
-        self.custom_acc_toggle.action_item.set_state(False)
+        if not (ui_state.CP and ui_state.CP.pcmCruise):
+          self.custom_acc_toggle.action_item.set_state(False)
 
     if self.custom_acc_toggle.description != new_custom_acc_desc:
       self.custom_acc_toggle.set_description(new_custom_acc_desc)

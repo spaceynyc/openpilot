@@ -196,7 +196,6 @@ class UIStateSP:
 
     # Cruise features requiring longitudinal or ICBM
     if not (has_long or self.has_icbm):
-      self.params.remove("CustomAccIncrementsEnabled")
       self.params.remove("SmartCruiseControlVision")
       self.params.remove("SmartCruiseControlMap")
 

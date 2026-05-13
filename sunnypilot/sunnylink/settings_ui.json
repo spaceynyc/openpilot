@@ -654,34 +654,6 @@
           "enablement": [
             {
               "type": "offroad_only"
-            },
-            {
-              "type": "any",
-              "conditions": [
-                {
-                  "type": "all",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "not",
-                      "condition": {
-                        "type": "capability",
-                        "field": "pcm_cruise",
-                        "equals": true
-                      }
-                    }
-                  ]
-                },
-                {
-                  "type": "capability",
-                  "field": "has_icbm",
-                  "equals": true
-                }
-              ]
             }
           ],
           "items": [
@@ -692,34 +664,6 @@
               "enablement": [
                 {
                   "type": "offroad_only"
-                },
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "all",
-                      "conditions": [
-                        {
-                          "type": "capability",
-                          "field": "has_longitudinal_control",
-                          "equals": true
-                        },
-                        {
-                          "type": "not",
-                          "condition": {
-                            "type": "capability",
-                            "field": "pcm_cruise",
-                            "equals": true
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
                 }
               ]
             }

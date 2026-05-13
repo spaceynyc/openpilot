@@ -62,42 +62,12 @@ sections:
   description: ''
   enablement:
   - $ref: '#/macros/offroad'
-  - type: any
-    conditions:
-    - type: all
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: not
-        condition:
-          type: capability
-          field: pcm_cruise
-          equals: true
-    - type: capability
-      field: has_icbm
-      equals: true
   items:
   - key: CustomAccIncrementsEnabled
     widget: toggle
     title: Enable Custom ACC Speed Intervals
     enablement:
     - $ref: '#/macros/offroad'
-    - type: any
-      conditions:
-      - type: all
-        conditions:
-        - type: capability
-          field: has_longitudinal_control
-          equals: true
-        - type: not
-          condition:
-            type: capability
-            field: pcm_cruise
-            equals: true
-      - type: capability
-        field: has_icbm
-        equals: true
   sub_panels:
   - id: custom_acc_intervals
     label: Custom ACC Speed Intervals Settings
