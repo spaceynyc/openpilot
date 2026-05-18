@@ -200,6 +200,9 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
     self.torque_lpf = 0.0
     self.prev_torque_cmd = 0.0
     self.driver_override_lkas_inactive = False
+    self.lat_active_prev = False
+    self.steering_pressed_prev = False
+    self.rejoin_ramp = 1.0
 
     # EPS-modified steering override filter. Raw Honda steeringPressed can false-trigger
     # during high-assist/high-angle turns because the EPS torque sensor sees a short
@@ -340,7 +343,7 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
       accel = 0.0
       gas, brake = 0.0, 0.0
 
-    torque_cmd = actuators.torque
+    torque_cmd = float(actuators.torque)
 
     if CC.latActive:
       # Keep driver override behavior separate from the torque LPF.
@@ -348,25 +351,35 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
       # still disables LKAS torque instead of making the EPS fight the driver.
       steering_pressed = self._filtered_steering_pressed(CS, torque_cmd) if self.eps_modified else bool(CS.out.steeringPressed)
       self.driver_override_lkas_inactive = steering_pressed
+      lat_rejoined = CC.latActive and not self.lat_active_prev
+      driver_released = self.steering_pressed_prev and not steering_pressed
+
+      if lat_rejoined or driver_released:
+        self.rejoin_ramp = 0.0
 
       if steering_pressed:
-        self.torque_lpf = 0.0
-        self.prev_torque_cmd = 0.0
         torque_cmd = 0.0
       else:
+        self.rejoin_ramp = min(1.0, self.rejoin_ramp + DT_CTRL / 3.0)
         tau = _torque_lpf_tau(torque_cmd, self.prev_torque_cmd, CS.out.vEgo)
         alpha = DT_CTRL / (tau + DT_CTRL)
 
-        self.torque_lpf = alpha * float(torque_cmd) + (1.0 - alpha) * self.torque_lpf
-        self.prev_torque_cmd = float(torque_cmd)
-        torque_cmd = self.torque_lpf
+        self.torque_lpf = alpha * torque_cmd + (1.0 - alpha) * self.torque_lpf
+        self.prev_torque_cmd = torque_cmd
+        torque_cmd = self.torque_lpf * self.rejoin_ramp
+
+      self.lat_active_prev = CC.latActive
+      self.steering_pressed_prev = steering_pressed
     else:
       self.torque_lpf = 0.0
       self.prev_torque_cmd = 0.0
       self.last_torque = 0.0
+      self.rejoin_ramp = 0.0
       self.steering_pressed_filter_s = 0.0
       self.steering_pressed_robust_prev = False
       self.driver_override_lkas_inactive = False
+      self.lat_active_prev = False
+      self.steering_pressed_prev = False
 
     limited_torque = rate_limit(
       torque_cmd,
