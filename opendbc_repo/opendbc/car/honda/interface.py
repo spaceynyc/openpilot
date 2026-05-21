@@ -16,6 +16,18 @@ from opendbc.sunnypilot.car.honda.values_ext import HondaFlagsSP, HondaSafetyFla
 
 TransmissionType = structs.CarParams.TransmissionType
 
+FORCE_EPS_MODIFIED_TUNE_CANDIDATES = {
+  CAR.HONDA_CIVIC,
+  CAR.HONDA_CIVIC_BOSCH,
+  CAR.HONDA_CIVIC_BOSCH_DIESEL,
+  CAR.HONDA_CIVIC_2022,
+  CAR.HONDA_ACCORD,
+  CAR.HONDA_CRV_5G,
+  CAR.HONDA_INSIGHT,
+  CAR.HONDA_NBOX_2G,
+  CAR.HONDA_CLARITY,
+}
+
 
 class CarInterface(CarInterfaceBase):
   CarState = CarState
@@ -318,6 +330,10 @@ class CarInterface(CarInterfaceBase):
                      car_fw: list[structs.CarParams.CarFw], alpha_long: bool, is_release_sp: bool, docs: bool) -> structs.CarParamsSP:
     CAN = CanBus(stock_cp, fingerprint)
 
+    if candidate in FORCE_EPS_MODIFIED_TUNE_CANDIDATES:
+      ret.flags |= HondaFlagsSP.EPS_MODIFIED.value
+      stock_cp.dashcamOnly = False
+
     for fw in car_fw:
       if fw.ecu == "eps" and b"," in fw.fwVersion:
         ret.flags |= HondaFlagsSP.EPS_MODIFIED.value
@@ -336,86 +352,22 @@ class CarInterface(CarInterfaceBase):
     if candidate == CAR.HONDA_CIVIC:
       if ret.flags & HondaFlagsSP.EPS_MODIFIED:
         stock_cp.lateralParams.torqueBP, stock_cp.lateralParams.torqueV = [[0, 3840], [0, 3840]] # TODO: Verify this is stable
-        stock_cp.lateralTuning.pid.kf = 0.00006
-        stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.3], [0.1]]
+        stock_cp.steerAtStandstill = True
+        stock_cp.minEnableSpeed = -1.0
+        stock_cp.minSteerSpeed = -1.0
+        stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.12], [0.04]]
+        stock_cp.lateralTuning.pid.kf = 0.000024
 
     # Bosch Civic Testing Grounds
 
     elif candidate in (CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CIVIC_BOSCH_DIESEL):
       if ret.flags & HondaFlagsSP.EPS_MODIFIED:
-        stock_cp.minSteerSpeed = -1.
-        stock_cp.lateralParams.torqueBP, stock_cp.lateralParams.torqueV = [[0, 4096], [0, 4096]] # TODO: Verify this is stable
-
-        # Modified EPS tuning playground. Watch this video to tune: https://youtu.be/4Y7zG48uHRo
-        # Speed breakpoints are fixed 5 mph steps from 0-80 mph. Do not tune the BP arrays directly.
-        stock_cp.lateralTuning.pid.kpBP = [0.000, 2.235, 4.470, 6.706, 8.941, 11.176, 13.411, 15.646, 17.882, 20.117, 22.352, 24.587, 26.822, 29.058, 31.293, 33.528, 35.763]
-        stock_cp.lateralTuning.pid.kiBP = stock_cp.lateralTuning.pid.kpBP
-
-        stock_cp.lateralTuning.pid.kpV = [ # Controls how strongly the car reacts RIGHT NOW.
-          #
-          # Higher values:
-          #   More immediate steering response.
-          #   Can become twitchy or oscillate if too high.
-          #
-          # Lower values:
-          #   Smoother and calmer steering.
-          #   Less nervous on rough roads.
-          #   Can feel lazy or wander on highways.
-          #
-          # 50+ mph values reduced by 15% to reduce inside curve hugging
-          # and make highway tracking feel more natural and relaxed.
-          #
-          0.06,  # 0 mph
-          0.06,  # 5 mph
-          0.06,  # 10 mph
-          0.06,  # 15 mph
-          0.06,  # 20 mph
-          0.06,  # 25 mph
-          0.06,  # 30 mph
-          0.06,  # 35 mph
-          0.12,  # 40 mph
-          0.12,  # 45 mph
-          0.12,  # 50 mph
-          0.12,  # 55 mph
-          0.12,  # 60 mph
-          0.12,  # 65 mph
-          0.12,  # 70 mph
-          0.12,  # 75 mph
-          0.12,  # 80 mph
-        ]
-
-        stock_cp.lateralTuning.pid.kiV = [ # Controls how strongly the car fights permanent errors over time. (Do you have an alignment problem?)
-          #
-          # Higher values:
-          #   Better at staying perfectly centered.
-          #   Helps correct slow drifting.
-          #   Can create sticky windup if too high.
-          #
-          # Lower values:
-          #   More natural steering feel.
-          #   Less correction buildup.
-          #   Can slowly drift off-center.
-          #
-          0.00,  # 0 mph
-          0.00,  # 5 mph
-          0.00,  # 10 mph
-          0.02,  # 15 mph
-          0.02,  # 20 mph
-          0.02,  # 25 mph
-          0.02,  # 30 mph
-          0.02,  # 35 mph
-          0.04,  # 40 mph
-          0.04,  # 45 mph
-          0.04,  # 50 mph
-          0.04,  # 55 mph
-          0.04,  # 60 mph
-          0.04,  # 65 mph
-          0.04,  # 70 mph
-          0.04,  # 75 mph
-          0.04,  # 80 mph
-        ]
-
-        stock_cp.lateralTuning.pid.kf = 0.000024 # Predicts what steering will be needed ahead of time.
+        stock_cp.lateralParams.torqueBP, stock_cp.lateralParams.torqueV = [[0, 4096], [0, 4096]]
+        stock_cp.steerAtStandstill = True
+        stock_cp.minEnableSpeed = -1.0
+        stock_cp.minSteerSpeed = -1.0
+        stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.12], [0.04]]
+        stock_cp.lateralTuning.pid.kf = 0.000024
 
     elif candidate == CAR.HONDA_CIVIC_2022:
       if ret.flags & HondaFlagsSP.EPS_MODIFIED:
@@ -435,54 +387,23 @@ class CarInterface(CarInterfaceBase):
         CarInterfaceBase.configure_torque_tune(candidate, stock_cp.lateralTuning)
 
     elif candidate == CAR.HONDA_CLARITY:
-      stock_cp.autoResumeSng = True
-      stock_cp.minEnableSpeed = -1
-      stock_cp.minSteerSpeed = -1.
       stock_cp.lateralParams.torqueBP, stock_cp.lateralParams.torqueV = [[0, 1663], [0, 1663]]
-      stock_cp.lateralTuning.pid.kpBP = [0.000, 2.235, 4.470, 6.706, 8.941, 11.176, 13.411, 15.646, 17.882, 20.117, 22.352, 24.587, 26.822, 29.058, 31.293, 33.528, 35.763]
-      stock_cp.lateralTuning.pid.kiBP = stock_cp.lateralTuning.pid.kpBP
-
-      stock_cp.lateralTuning.pid.kpV = [
-        0.06,   # 0 mph
-        0.06,   # 5 mph
-        0.06,   # 10 mph
-        0.06,   # 15 mph
-        0.06,   # 20 mph
-        0.06,   # 25 mph
-        0.06,   # 30 mph
-        0.06,   # 35 mph
-        0.06,   # 40 mph
-        0.06,   # 45 mph
-        0.06,   # 50 mph
-        0.06,   # 55 mph
-        0.06,   # 60 mph
-        0.06,   # 65 mph
-        0.06,   # 70 mph
-        0.06,   # 75 mph
-        0.06,   # 80 mph
-      ]
-
-      stock_cp.lateralTuning.pid.kiV = [
-        0.00,  # 0 mph
-        0.00,  # 5 mph
-        0.00,  # 10 mph
-        0.01,  # 15 mph
-        0.01,  # 20 mph
-        0.01,  # 25 mph
-        0.01,  # 30 mph
-        0.01,  # 35 mph
-        0.02,  # 40 mph
-        0.02,  # 45 mph
-        0.02,  # 50 mph
-        0.02,  # 55 mph
-        0.02,  # 60 mph
-        0.02,  # 65 mph
-        0.02,  # 70 mph
-        0.02,  # 75 mph
-        0.02,  # 80 mph
-      ]
-
+      stock_cp.steerAtStandstill = True
+      stock_cp.autoResumeSng = True
+      stock_cp.minEnableSpeed = -1.0
+      stock_cp.minSteerSpeed = -1.0
+      stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.06], [0.02]]
       stock_cp.lateralTuning.pid.kf = 0.000012
+
+    elif candidate in (CAR.HONDA_INSIGHT, CAR.HONDA_NBOX_2G):
+      if ret.flags & HondaFlagsSP.EPS_MODIFIED:
+        stock_cp.lateralParams.torqueBP, stock_cp.lateralParams.torqueV = [[0, 3840], [0, 3840]]
+        stock_cp.steerAtStandstill = True
+        stock_cp.autoResumeSng = True
+        stock_cp.minEnableSpeed = -1.0
+        stock_cp.minSteerSpeed = -1.0
+        stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.12], [0.04]]
+        stock_cp.lateralTuning.pid.kf = 0.000024
 
     elif candidate in (CAR.ACURA_MDX_3G, CAR.ACURA_MDX_3G_MMR):  # source mlocoteta
       stock_cp.autoResumeSng = True
