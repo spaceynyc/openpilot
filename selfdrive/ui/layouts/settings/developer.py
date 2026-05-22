@@ -1,6 +1,7 @@
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.widgets.ssh_key import ssh_key_item
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.sunnypilot.ui_state import manual_honda_alpha_long_available
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.list_view import toggle_item
 from openpilot.system.ui.widgets.scroller_tici import Scroller
@@ -125,8 +126,9 @@ class DeveloperLayout(Widget):
       item.set_visible(not self._is_release)
 
     # CP gating
+    manual_alpha_avail = manual_honda_alpha_long_available(self._params)
     if ui_state.CP is not None:
-      alpha_avail = ui_state.CP.alphaLongitudinalAvailable
+      alpha_avail = ui_state.CP.alphaLongitudinalAvailable or manual_alpha_avail
       if not alpha_avail or self._is_release:
         self._alpha_long_toggle.set_visible(False)
         self._params.remove("AlphaLongitudinalEnabled")
@@ -144,7 +146,7 @@ class DeveloperLayout(Widget):
     else:
       self._long_maneuver_toggle.action_item.set_enabled(False)
       self._lat_maneuver_toggle.action_item.set_enabled(False)
-      self._alpha_long_toggle.set_visible(False)
+      self._alpha_long_toggle.set_visible(manual_alpha_avail and not self._is_release)
 
     # TODO: make a param control list item so we don't need to manage internal state as much here
     # refresh toggles from params to mirror external changes

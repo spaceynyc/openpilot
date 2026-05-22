@@ -90,3 +90,41 @@ class TestCapabilitiesShape:
     assert isinstance(caps["brand"], str)
     assert isinstance(caps["steer_control_type"], str)
     assert isinstance(caps["device_type"], str)
+
+
+class FakeParams:
+  def __init__(self, values=None, bools=None):
+    self.values = values or {}
+    self.bools = bools or {}
+
+  def get(self, key):
+    return self.values.get(key)
+
+  def get_bool(self, key):
+    return bool(self.bools.get(key, False))
+
+
+class TestManualFingerprintFallback:
+  def test_honda_insight_bundle_exposes_alpha_long_toggle_without_carparams(self):
+    params = FakeParams(values={
+      "CarPlatformBundle": {"brand": "honda", "platform": "HONDA_INSIGHT"},
+    })
+
+    caps = generate_capabilities(params)
+
+    assert caps["brand"] == "honda"
+    assert caps["alpha_long_available"] is True
+    assert caps["has_longitudinal_control"] is False
+    assert caps["pcm_cruise"] is True
+
+  def test_honda_insight_bundle_reports_long_control_after_alpha_long_enabled(self):
+    params = FakeParams(
+      values={"CarPlatformBundle": {"brand": "honda", "platform": "HONDA_INSIGHT"}},
+      bools={"AlphaLongitudinalEnabled": True},
+    )
+
+    caps = generate_capabilities(params)
+
+    assert caps["alpha_long_available"] is True
+    assert caps["has_longitudinal_control"] is True
+    assert caps["pcm_cruise"] is False

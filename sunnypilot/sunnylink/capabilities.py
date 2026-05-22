@@ -73,6 +73,10 @@ CAPABILITY_DEFAULTS: dict[str, bool | str | int] = {
   "protocol_version": PROTOCOL_VERSION,
 }
 
+HONDA_ALPHA_LONG_PLATFORMS = frozenset({
+  "HONDA_INSIGHT",
+})
+
 
 def _bundle_field(bundle: dict | None, key: str) -> str:
   return bundle.get(key, "") if isinstance(bundle, dict) else ""
@@ -164,6 +168,16 @@ def generate_capabilities(params: Params | None = None) -> dict:
     except Exception:
       CP = None
       cloudlog.exception("capabilities: failed to deserialize CarParamsPersistent")
+
+  # Manual fingerprinting can write CarPlatformBundle before a fresh
+  # CarParamsPersistent exists. Keep the alpha-long toggle visible for known
+  # Honda platforms so the user can enable it and let card rebuild CarParams.
+  if bundle_brand == "honda" and bundle_platform in HONDA_ALPHA_LONG_PLATFORMS:
+    alpha_long_enabled = params.get_bool("AlphaLongitudinalEnabled")
+    caps["alpha_long_available"] = True
+    caps["has_longitudinal_control"] = alpha_long_enabled
+    caps["pcm_cruise"] = not alpha_long_enabled
+    caps["has_stop_and_go"] = alpha_long_enabled
 
   # CarParamsSP-derived capabilities
   CP_SP_bytes = params.get("CarParamsSPPersistent")
