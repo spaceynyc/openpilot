@@ -402,6 +402,8 @@ class CarInterface(CarInterfaceBase):
         stock_cp.autoResumeSng = True
         stock_cp.minEnableSpeed = -1.0
         stock_cp.minSteerSpeed = -1.0
+        stock_cp.lateralTuning.init('pid')
+        stock_cp.lateralTuning.pid.kiBP, stock_cp.lateralTuning.pid.kpBP = [[0.], [0.]]
         stock_cp.lateralTuning.pid.kpV, stock_cp.lateralTuning.pid.kiV = [[0.12], [0.04]]
         stock_cp.lateralTuning.pid.kf = 0.000024
 
