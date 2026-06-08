@@ -1,5 +1,11 @@
+import json
+import platform
+
+import numpy as np
+
 from cereal import log, custom
 from openpilot.common.constants import CV
+from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
 from openpilot.sunnypilot.selfdrive.controls.lib.auto_lane_change import AutoLaneChangeController, AutoLaneChangeMode
 from openpilot.sunnypilot.selfdrive.controls.lib.lane_turn_desire import LaneTurnController
@@ -10,6 +16,10 @@ TurnDirection = custom.ModelDataV2SP.TurnDirection
 
 LANE_CHANGE_SPEED_MIN = 20 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
+NAV_TURN_DISTANCE_SPEED_BREAKPOINTS = [0.0, 5.0, 10.0]
+NAV_TURN_DISTANCE_BREAKPOINTS = [20.0, 25.0, 30.0]
+NAV_KEEP_DISTANCE_SPEED_BREAKPOINTS = [0.0, 15.0, 30.0]
+NAV_KEEP_DISTANCE_BREAKPOINTS = [25.0, 90.0, 160.0]
 
 DESIRES = {
   LaneChangeDirection.none: {
@@ -41,6 +51,8 @@ TURN_DESIRES = {
 
 class DesireHelper:
   def __init__(self):
+    self.params = Params()
+    self.params_memory = Params("/dev/shm/params") if platform.system() != "Darwin" else self.params
     self.lane_change_state = LaneChangeState.off
     self.lane_change_direction = LaneChangeDirection.none
     self.lane_change_timer = 0.0
@@ -51,10 +63,115 @@ class DesireHelper:
     self.alc = AutoLaneChangeController(self)
     self.lane_turn_controller = LaneTurnController(self)
     self.lane_turn_direction = TurnDirection.none
+    self.nav_desires_allowed = False
+    self._nav_param_counter = -1
+    self._nav_instruction_state_raw: object = None
+    self._nav_instruction_state: dict[str, object] = {}
 
   @staticmethod
   def get_lane_change_direction(CS):
     return LaneChangeDirection.left if CS.leftBlinker else LaneChangeDirection.right
+
+  def _update_nav_params(self):
+    self._nav_param_counter += 1
+    if self._nav_param_counter % 60 == 0:
+      self.nav_desires_allowed = self.params.get_bool("NavDesiresAllowed")
+
+    raw = self.params_memory.get("NavInstructionState") or {}
+    if raw == self._nav_instruction_state_raw:
+      return
+
+    self._nav_instruction_state_raw = raw
+    if not raw:
+      self._nav_instruction_state = {}
+      return
+
+    if isinstance(raw, dict):
+      self._nav_instruction_state = raw
+      return
+
+    if isinstance(raw, bytes):
+      raw = raw.decode("utf-8", errors="ignore")
+
+    if isinstance(raw, str):
+      try:
+        parsed = json.loads(raw)
+        self._nav_instruction_state = parsed if isinstance(parsed, dict) else {}
+        return
+      except json.JSONDecodeError:
+        pass
+
+    self._nav_instruction_state = {}
+
+  @staticmethod
+  def _nav_keep_direction_is_clear(carstate, lane_change_direction):
+    return not (
+      (lane_change_direction == LaneChangeDirection.left and carstate.leftBlindspot) or
+      (lane_change_direction == LaneChangeDirection.right and carstate.rightBlindspot)
+    )
+
+  @staticmethod
+  def _nav_torque_applied(carstate, lane_change_direction):
+    return carstate.steeringPressed and (
+      (lane_change_direction == LaneChangeDirection.left and carstate.steeringTorque > 0) or
+      (lane_change_direction == LaneChangeDirection.right and carstate.steeringTorque < 0)
+    )
+
+  @staticmethod
+  def _nav_turn_is_imminent(carstate, maneuver_distance):
+    try:
+      distance = float(maneuver_distance)
+    except (TypeError, ValueError):
+      return False
+
+    return distance <= float(np.interp(carstate.vEgo, NAV_TURN_DISTANCE_SPEED_BREAKPOINTS, NAV_TURN_DISTANCE_BREAKPOINTS))
+
+  @staticmethod
+  def _nav_keep_is_imminent(carstate, maneuver_distance):
+    try:
+      distance = float(maneuver_distance)
+    except (TypeError, ValueError):
+      return False
+
+    return distance <= float(np.interp(carstate.vEgo, NAV_KEEP_DISTANCE_SPEED_BREAKPOINTS, NAV_KEEP_DISTANCE_BREAKPOINTS))
+
+  @staticmethod
+  def _nav_effective_modifier(nav_instruction_state, carstate, maneuver_distance):
+    modifier = str(nav_instruction_state.get("maneuverModifier", ""))
+    maneuver_type = str(nav_instruction_state.get("maneuverType", ""))
+    active_lane_direction = str(nav_instruction_state.get("activeLaneDirection", ""))
+
+    if modifier in ("left", "right") and maneuver_type in ("off ramp", "fork") and DesireHelper._nav_keep_is_imminent(carstate, maneuver_distance):
+      if active_lane_direction in ("slightLeft", "left"):
+        return "slightLeft"
+      if active_lane_direction in ("slightRight", "right"):
+        return "slightRight"
+
+    return modifier
+
+  def _navigation_desire(self, carstate, lateral_active):
+    self._update_nav_params()
+    if not self.nav_desires_allowed or not lateral_active or not bool(self._nav_instruction_state.get("valid", False)):
+      return log.Desire.none
+
+    maneuver_distance = self._nav_instruction_state.get("maneuverDistance", 0.0)
+    modifier = self._nav_effective_modifier(self._nav_instruction_state, carstate, maneuver_distance)
+    if modifier == "slightLeft":
+      if not carstate.rightBlinker and self._nav_keep_direction_is_clear(carstate, LaneChangeDirection.left):
+        if self._nav_torque_applied(carstate, LaneChangeDirection.left):
+          return log.Desire.keepLeft
+    elif modifier == "slightRight":
+      if not carstate.leftBlinker and self._nav_keep_direction_is_clear(carstate, LaneChangeDirection.right):
+        if self._nav_torque_applied(carstate, LaneChangeDirection.right):
+          return log.Desire.keepRight
+    elif modifier in ("left", "sharpLeft"):
+      if not carstate.rightBlinker and not carstate.leftBlindspot and carstate.vEgo < LANE_CHANGE_SPEED_MIN and not carstate.standstill and self._nav_turn_is_imminent(carstate, maneuver_distance):
+        return log.Desire.turnLeft
+    elif modifier in ("right", "sharpRight"):
+      if not carstate.leftBlinker and not carstate.rightBlindspot and carstate.vEgo < LANE_CHANGE_SPEED_MIN and not carstate.standstill and self._nav_turn_is_imminent(carstate, maneuver_distance):
+        return log.Desire.turnRight
+
+    return log.Desire.none
 
   def update(self, carstate, lateral_active, lane_change_prob):
     self.alc.update_params()
@@ -143,3 +260,7 @@ class DesireHelper:
         self.desire = log.Desire.none
 
     self.alc.update_state()
+
+    nav_desire = self._navigation_desire(carstate, lateral_active)
+    if nav_desire != log.Desire.none and self.lane_change_state == LaneChangeState.off:
+      self.desire = nav_desire
