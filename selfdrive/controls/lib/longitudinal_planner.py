@@ -9,10 +9,8 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.selfdrive.controls.lib.longcontrol import LongCtrlState
-from openpilot.selfdrive.controls.lib.lead_behavior import get_matched_follow_brake_floor, get_vision_lead_approach_cap
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import LongitudinalMpc, LongitudinalPlanSource
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import desired_follow_distance, get_T_FOLLOW
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_from_plan
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
@@ -67,25 +65,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.v_desired_trajectory = np.zeros(CONTROL_N)
     self.a_desired_trajectory = np.zeros(CONTROL_N)
     self.j_desired_trajectory = np.zeros(CONTROL_N)
-
-  def apply_starpilot_lead_follow_caps(self, sm, v_ego, output_a_target):
-    personality = sm['selfdriveState'].personality
-    t_follow = get_T_FOLLOW(personality)
-
-    for lead in (sm['radarState'].leadOne, sm['radarState'].leadTwo):
-      if not lead.status:
-        continue
-
-      desired_gap = desired_follow_distance(v_ego, lead.vLead, t_follow)
-      approach_cap = get_vision_lead_approach_cap(lead, v_ego, ACCEL_MIN, desired_gap)
-      if approach_cap is not None:
-        output_a_target = min(output_a_target, approach_cap)
-
-      matched_floor = get_matched_follow_brake_floor(lead, v_ego, t_follow, desired_gap)
-      if matched_floor is not None:
-        output_a_target = max(output_a_target, matched_floor)
-
-    return output_a_target
 
   @staticmethod
   def parse_model(model_msg):
@@ -189,8 +168,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     else:
       output_a_target = output_a_target_mpc
       self.output_should_stop = output_should_stop_mpc
-
-    output_a_target = self.apply_starpilot_lead_follow_caps(sm, v_ego, output_a_target)
 
     for idx in range(2):
       accel_clip[idx] = np.clip(accel_clip[idx], self.prev_accel_clip[idx] - 0.05, self.prev_accel_clip[idx] + 0.05)
