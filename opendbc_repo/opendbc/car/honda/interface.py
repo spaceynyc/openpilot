@@ -88,6 +88,10 @@ class CarInterface(CarInterfaceBase):
     ret.stoppingDecelRate = 0.3  # smooth out harsh braking before standstill
     if candidate in HONDA_BOSCH:
       ret.longitudinalActuatorDelay = 0.5 # s
+      if candidate == CAR.HONDA_INSIGHT:
+        # hybrid regen decel responds much faster than the 0.5s gas assumption;
+        # a too-long delay makes the planner over-command then correct (surge/dip)
+        ret.longitudinalActuatorDelay = 0.3
       # longitudinal gas-only tuning for Bosch hondas is in carcontroller
       if candidate in HONDA_BOSCH_RADARLESS:
         ret.stopAccel = CarControllerParams.BOSCH_ACCEL_MIN  # stock uses -4.0 m/s^2 once stopped but limited by safety model

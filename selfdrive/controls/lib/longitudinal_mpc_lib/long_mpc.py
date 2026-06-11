@@ -62,9 +62,9 @@ MIN_X_LEAD_FACTOR = 0.5
 
 def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
   if personality==log.LongitudinalPersonality.econ:
-    return 1.0
+    return 1.5
   elif personality==log.LongitudinalPersonality.relaxed:
-    return 1.0
+    return 1.5
   elif personality==log.LongitudinalPersonality.standard:
     return 1.0
   elif personality==log.LongitudinalPersonality.aggressive:
@@ -73,17 +73,22 @@ def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
     raise NotImplementedError("Longitudinal personality not supported")
 
 
-def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
+def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard, v_ego=None):
   if personality==log.LongitudinalPersonality.econ:
-    return 2.00
+    t_follow = 2.00
   elif personality==log.LongitudinalPersonality.relaxed:
-    return 1.75
+    t_follow = 1.75
   elif personality==log.LongitudinalPersonality.standard:
-    return 1.45
+    t_follow = 1.45
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 1.00
+    t_follow = 1.00
   else:
     raise NotImplementedError("Longitudinal personality not supported")
+
+  if v_ego is not None:
+    # lengthen the gap at low speed to cut stop-and-go brake/gas cycling
+    t_follow += np.interp(v_ego, [0.0, 15.0], [0.25, 0.0])
+  return t_follow
 
 def get_stopped_equivalence_factor(v_lead):
   return (v_lead**2) / (2 * COMFORT_BRAKE)
@@ -314,8 +319,8 @@ class LongitudinalMpc:
     return np.column_stack((x_lead_mpc, v_lead_mpc))
 
   def update(self, v_cruise, modelV2, radarstate, personality=log.LongitudinalPersonality.standard):
-    t_follow = get_T_FOLLOW(personality)
     v_ego = self.x0[1]
+    t_follow = get_T_FOLLOW(personality, v_ego=v_ego)
     model_leads = modelV2.leadsV3
     self.status = model_leads[0].prob > 0.5 or model_leads[1].prob > 0.5
 

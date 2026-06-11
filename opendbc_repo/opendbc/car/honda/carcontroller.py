@@ -265,12 +265,17 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
     self.steering_pressed_robust_prev = False
 
     # Bosch extra-brake controller
-    self.brake_pid = PIDController(k_p=([0,], [0,]),
-                                   k_i=([0.], [0.5]),
+    # P reacts to decel tracking error immediately; I is kept small so it doesn't
+    # wind up against brake/regen actuation lag and over-brake once decel arrives
+    self.brake_pid = PIDController(k_p=([0,], [0.08,]),
+                                   k_i=([0.], [0.3]),
                                    pos_limit=0.0,
                                    neg_limit=-2.0,
                                    rate=50)
     self.brake_pid.reset()
+    self.prev_target_accel = 0.0
+    self.last_bosch_accel = 0.0
+    self.bosch_braking = False
 
   def _filtered_steering_pressed(self, CS, torque_cmd: float) -> bool:
     raw_pressed = bool(CS.out.steeringPressed)
@@ -493,14 +498,33 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
 
         if self.CP.carFingerprint in HONDA_BOSCH:
           if (accel < 0) and (CS.out.vEgo > 1e-3):
+            # bleed off stale integral while the planner is easing off the brake,
+            # otherwise it holds extra brake through the end of the maneuver
+            if accel > self.prev_target_accel:
+              self.brake_pid.i *= 0.98
             brake_addon = self.brake_pid.update(error = accel - CS.out.aEgo, speed = CS.out.vEgo)
-            targetaccel = min(accel,accel + brake_addon)
+            targetaccel = min(accel, accel + brake_addon)
           else:
             self.brake_pid.reset()
             targetaccel = accel
+          self.prev_target_accel = accel
 
           self.accel = float(np.clip(targetaccel, self.params.BOSCH_ACCEL_MIN, self.params.BOSCH_ACCEL_MAX))
+
+          # jerk-limit how fast brake authority builds (4 m/s^3); release is unlimited.
+          # bypassed for commands below -3.0 m/s^2 so hard braking keeps full authority
+          if CC.longActive and self.accel > -3.0:
+            self.accel = max(self.accel, self.last_bosch_accel - 4.0 * DT_CTRL * 2)
+          self.last_bosch_accel = self.accel
+
           gas_pedal_force = self.accel + wind_brake_ms2 * self.windfactor + hill_brake
+
+          # hysteresis so BRAKE_REQUEST/GAS_COMMAND don't toggle every frame when
+          # coasting near zero accel; inside the band the car coasts on regen
+          if self.bosch_braking:
+            self.bosch_braking = gas_pedal_force < 0.05
+          else:
+            self.bosch_braking = gas_pedal_force < -0.05
 
           # live-learn gas pedal adjustments when openpilot is controlling gas
           if live["live_learning_gas"] and (actuators.longControlState == LongCtrlState.pid) and (not CS.out.gasPressed):
@@ -540,7 +564,8 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
           stopping = actuators.longControlState == LongCtrlState.stopping
           self.stopping_counter = self.stopping_counter + 1 if stopping else 0
           can_sends.extend(hondacan.create_acc_commands(self.packer, self.CAN, CC.enabled, CC.longActive, self.accel, self.gas,
-                                                        self.stopping_counter, self.CP.carFingerprint, gas_pedal_force))
+                                                        self.stopping_counter, self.CP.carFingerprint, gas_pedal_force,
+                                                        self.bosch_braking))
         else:
           apply_brake = np.clip(self.brake_last - wind_brake, 0.0, 1.0)
           apply_brake = int(np.clip(apply_brake * self.params.NIDEC_BRAKE_MAX, 0, self.params.NIDEC_BRAKE_MAX - 1))
