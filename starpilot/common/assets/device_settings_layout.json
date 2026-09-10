@@ -481,6 +481,20 @@
     ]
   },
   {
+    "name": "BLoTv2",
+    "icon": "bi-speedometer2",
+    "params": [
+      {
+        "key": "BlotV2",
+        "label": "BLoTv2 lead response",
+        "description": "Experimental ACC following-time and acceleration-change cost adjustment. Inactive in blended mode and Experimental model-simulation output. Takes effect next ignition.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "settings_tier": "advanced"
+      }
+    ]
+  },
+  {
     "name": "Insight Steering",
     "icon": "bi-car-front",
     "params": [

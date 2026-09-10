@@ -506,6 +506,11 @@ class StarPilotLongitudinalLayout(_SettingsPage):
     
     # ── 1. Longitudinal Tuning Rows ──
     self._tune_rows = [
+      SettingRow("BlotV2", "toggle", tr_noop("BLoTv2 lead response"),
+                 subtitle=tr_noop("Experimental ACC following-time and response adjustment. Takes effect next ignition."),
+                 get_state=lambda: self._params.get_bool("BlotV2"),
+                 set_state=lambda state: self._params.put_bool("BlotV2", state),
+                 visible=self._longitudinal_enabled),
       SettingRow("AccelProfile", "value", tr_noop("Acceleration Profile"),
                  subtitle=tr_noop("Choose how quickly openpilot speeds up."),
                  get_value=self._get_acceleration_profile_label,

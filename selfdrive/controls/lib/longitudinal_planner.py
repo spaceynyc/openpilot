@@ -58,6 +58,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
+from openpilot.starpilot.insight.longitudinal import InsightLongitudinalPolicy
 from cereal import log
 
 LaneChangeState = log.LaneChangeState
@@ -580,6 +581,7 @@ class LongitudinalPlanner:
   def __init__(self, CP, init_v=0.0, init_a=0.0, dt=DT_MDL):
     self.CP = CP
     self.mpc = LongitudinalMpc(dt=dt)
+    self.insight_policy = InsightLongitudinalPolicy(CP, dt)
     self.fcw = False
     self.dt = dt
     self.model_allow_throttle = True
@@ -2149,6 +2151,16 @@ class LongitudinalPlanner:
     )
     lead_one_active = bool(self.lead_one.status and lead_control_active)
     effective_t_follow = self.get_dynamic_t_follow(sm['starpilotPlan'].tFollow, self.lead_one if lead_one_active else None, v_ego)
+    # Apply the bounded pad once, after stable's base-headway policy. Only the
+    # actual ACC solver consumes the cost multiplier; model-simulation bypasses
+    # in Experimental mode retain the stable output behavior.
+    blot_policy = self.insight_policy.update(
+      sm, self.mpc.mode, bool(self.mlsim and self.mode != 'acc'), reset_state,
+      lead_one_active, v_ego, self.a_desired, effective_t_follow,
+    )
+    if blot_policy is not None:
+      effective_t_follow = blot_policy.t_follow
+
 
     if self.is_preap and self.nap_adaptive_accel and lead_one_active:
       follow_limit = get_preap_follow_limit(v_ego)
@@ -2324,7 +2336,10 @@ class LongitudinalPlanner:
 
     personality = get_longitudinal_personality(sm)
 
-    self.mpc.set_weights(sm['starpilotPlan'].accelerationJerk,
+    acceleration_jerk = sm['starpilotPlan'].accelerationJerk
+    if blot_policy is not None:
+      acceleration_jerk *= blot_policy.jerk_scale
+    self.mpc.set_weights(acceleration_jerk,
                          sm['starpilotPlan'].dangerJerk,
                          sm['starpilotPlan'].speedJerk,
                          prev_accel_constraint,
@@ -3191,6 +3206,7 @@ class LongitudinalPlanner:
     plan_send.valid = sm.all_checks(service_list=['carState', 'controlsState', 'selfdriveState', 'radarState'])
 
     longitudinalPlan = plan_send.longitudinalPlan
+    longitudinalPlan.insightBLoT = self.insight_policy.diagnostics()
     longitudinalPlan.modelMonoTime = sm.logMonoTime['modelV2']
     longitudinalPlan.processingDelay = (plan_send.logMonoTime / 1e9) - sm.logMonoTime['modelV2']
     longitudinalPlan.solverExecutionTime = self.mpc.solve_time

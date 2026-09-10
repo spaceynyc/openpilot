@@ -1332,6 +1332,7 @@ struct LongitudinalPlan @0xe00b5b3eba12876c {
   leadTrajectoryV0 @41 :List(Float32);
   leadTrajectoryX1 @42 :List(Float32);
   leadTrajectoryV1 @43 :List(Float32);
+  insightBLoT @44 :Text; # Effective policy and actual solver mode; not upload status
 
   enum LongitudinalPlanSource {
     cruise @0;
