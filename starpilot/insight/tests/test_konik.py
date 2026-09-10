@@ -138,7 +138,7 @@ def test_switch_preserves_both_identities_until_restart(selected):
 @pytest.mark.parametrize("selected, expected", [(True, ("https://api.konik.ai", "wss://athena.konik.ai")),
                                                (False, ("https://api.commadotai.com", "wss://athena.comma.ai"))])
 def test_all_endpoints_follow_one_selection(monkeypatch, selected, expected):
-  monkeypatch.setattr(backend, "Params", lambda: Params(UseKonikServer=selected))
+  monkeypatch.setattr(backend, "Params", lambda **_: Params(UseKonikServer=selected))
   monkeypatch.setenv("API_HOST", "https://mismatched.invalid")
   monkeypatch.setenv("ATHENA_HOST", "wss://mismatched.invalid")
   assert backend.endpoints() == expected

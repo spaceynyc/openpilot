@@ -10,7 +10,7 @@ from openpilot.common.params import Params
 
 @cache
 def use_konik_server() -> bool:
-  return Params().get_bool("UseKonikServer")
+  return bool(Params(return_defaults=True).get("UseKonikServer"))
 
 
 def endpoints() -> tuple[str, str]:
