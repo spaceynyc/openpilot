@@ -272,38 +272,33 @@ def test_automatic_update_requests_guarded_reboot(monkeypatch):
   assert params.get("DoReboot") == b"1"
 
 
-def test_sync_konik_dongle_id_preserves_stock_id_before_switching(monkeypatch, tmp_path):
-  monkeypatch.setattr(cs.Paths, "persist_root", staticmethod(lambda: str(tmp_path)))
+def test_sync_konik_dongle_id_uses_local_resolver(monkeypatch):
   monkeypatch.setattr(cs, "use_konik_server", lambda: True)
-  monkeypatch.setattr(cs, "register", lambda **kwargs: "konik-dongle")
-
-  params = FakeParams({"DongleId": "stock-dongle"})
-
+  called = []
+  monkeypatch.setattr(cs, "resolve_local", lambda params: called.append(params))
+  params = FakeParams()
   cs.sync_konik_dongle_id(params)
-
-  assert params.get("StockDongleId") == "stock-dongle"
-  assert params.get("KonikDongleId") == "konik-dongle"
-  assert params.get("DongleId") == "konik-dongle"
+  assert called == [params]
 
 
 def test_sync_konik_dongle_id_restores_stock_id_from_persist(monkeypatch, tmp_path):
   persist_root = tmp_path / "persist"
   persisted_dongle_id_path = persist_root / "comma" / "dongle_id"
   persisted_dongle_id_path.parent.mkdir(parents=True, exist_ok=True)
-  persisted_dongle_id_path.write_text("stock-dongle")
+  persisted_dongle_id_path.write_text("b" * 16)
 
   monkeypatch.setattr(cs.Paths, "persist_root", staticmethod(lambda: str(persist_root)))
   monkeypatch.setattr(cs, "use_konik_server", lambda: False)
 
   params = FakeParams({
-    "DongleId": "konik-dongle",
-    "KonikDongleId": "konik-dongle",
+    "DongleId": "a" * 16,
+    "KonikDongleId": "a" * 16,
   })
 
   cs.sync_konik_dongle_id(params)
 
-  assert params.get("StockDongleId") == "stock-dongle"
-  assert params.get("DongleId") == "stock-dongle"
+  assert params.get("StockDongleId") == "b" * 16
+  assert params.get("DongleId") == "b" * 16
 
 
 def test_sync_konik_dongle_id_skips_missing_stock_backup(monkeypatch, tmp_path):
@@ -311,33 +306,33 @@ def test_sync_konik_dongle_id_skips_missing_stock_backup(monkeypatch, tmp_path):
   monkeypatch.setattr(cs, "use_konik_server", lambda: False)
 
   params = FakeParams({
-    "DongleId": "konik-dongle",
-    "KonikDongleId": "konik-dongle",
+    "DongleId": "a" * 16,
+    "KonikDongleId": "a" * 16,
   })
 
   cs.sync_konik_dongle_id(params)
 
-  assert params.get("DongleId") == "konik-dongle"
+  assert params.get("DongleId") == "a" * 16
   assert params.get("StockDongleId") is None
 
 
-def test_prepare_konik_server_switch_clears_cached_konik_id():
-  params = FakeParams({"KonikDongleId": "konik-dongle"})
-  params_cache = FakeParams({"KonikDongleId": "konik-dongle"})
+def test_prepare_konik_server_switch_preserves_cached_konik_id():
+  params = FakeParams({"KonikDongleId": "a" * 16})
+  params_cache = FakeParams({"KonikDongleId": "a" * 16})
 
   cs.prepare_konik_server_switch(True, params, params_cache)
 
   assert params.get("UseKonikServer") == b"1"
-  assert params.get("KonikDongleId") is None
-  assert params_cache.get("KonikDongleId") is None
+  assert params.get("KonikDongleId") == "a" * 16
+  assert params_cache.get("KonikDongleId") == "a" * 16
 
 
-def test_prepare_konik_server_switch_clears_cached_stock_id():
-  params = FakeParams({"DongleId": "konik-dongle"})
-  params_cache = FakeParams({"DongleId": "konik-dongle"})
+def test_prepare_konik_server_switch_preserves_current_id_until_restart():
+  params = FakeParams({"DongleId": "a" * 16})
+  params_cache = FakeParams({"DongleId": "a" * 16})
 
   cs.prepare_konik_server_switch(False, params, params_cache)
 
   assert params.get("UseKonikServer") == b"0"
-  assert params.get("DongleId") is None
-  assert params_cache.get("DongleId") is None
+  assert params.get("DongleId") == "a" * 16
+  assert params_cache.get("DongleId") == "a" * 16

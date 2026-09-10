@@ -8,6 +8,8 @@ from openpilot.system.manager.process import launcher
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.version import get_build_metadata
+from openpilot.starpilot.insight.backend import use_konik_server
+from openpilot.starpilot.insight.konik import bounded_registration, normalize
 
 ATHENA_MGR_PID_PARAM = "AthenadPid"
 
@@ -27,6 +29,12 @@ def main():
 
   try:
     while 1:
+      if use_konik_server() and normalize(params.get("DongleId")) is None:
+        if params.get_bool("IsOffroad"):
+          bounded_registration(params)
+        if normalize(params.get("DongleId")) is None:
+          time.sleep(30)
+          continue
       cloudlog.info("starting athena daemon")
       proc = Process(name='athenad', target=launcher, args=('system.athena.athenad', 'athenad'))
       proc.start()

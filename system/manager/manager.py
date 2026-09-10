@@ -1126,7 +1126,10 @@ def manager_thread() -> None:
   last_timing = _log_boot_timing("manager_thread", "params", manager_thread_start, last_timing)
 
   ignore: list[str] = []
-  if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID):
+  from openpilot.starpilot.insight.backend import use_konik_server
+  # Konik registration retries inside manage_athenad while offroad. Keep boot
+  # and local logging available; allow uploader after identity is recovered.
+  if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID) and not use_konik_server():
     ignore += ["manage_athenad", "uploader"]
   if os.getenv("NOBOARD") is not None:
     ignore.append("pandad")
@@ -1140,7 +1143,8 @@ def manager_thread() -> None:
   write_onroad_params(False, params)
   initial_toggles = get_starpilot_toggles(read_persisted_force_params=True)
   last_timing = _log_boot_timing("manager_thread", "initial_toggles", manager_thread_start, last_timing)
-  ensure_running(managed_processes.values(), False, params=params, CP=sm['carParams'], not_run=ignore, starpilot_toggles=initial_toggles)
+  registration_ignore = ["uploader"] if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID) else []
+  ensure_running(managed_processes.values(), False, params=params, CP=sm['carParams'], not_run=ignore + registration_ignore, starpilot_toggles=initial_toggles)
   last_timing = _log_boot_timing("manager_thread", "initial_ensure_running", manager_thread_start, last_timing)
 
   started_prev = False
@@ -1194,7 +1198,12 @@ def manager_thread() -> None:
     started_prev = started
     ignition_prev = ignition
 
-    ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore, starpilot_toggles=starpilot_toggles)
+    current_dongle_id = params.get("DongleId")
+    if current_dongle_id and current_dongle_id != os.environ.get("DONGLE_ID"):
+      os.environ["DONGLE_ID"] = current_dongle_id
+      cloudlog.bind_global(dongle_id=current_dongle_id)
+    registration_ignore = ["uploader"] if current_dongle_id in (None, UNREGISTERED_DONGLE_ID) else []
+    ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore + registration_ignore, starpilot_toggles=starpilot_toggles)
 
     running = ' '.join("{}{}\u001b[0m".format("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name)
                        for p in managed_processes.values() if p.proc)

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, UTC
 from openpilot.system.hardware.hw import Paths
 from openpilot.system.version import get_version
 
-from openpilot.starpilot.common.starpilot_utilities import use_konik_server
+from openpilot.starpilot.insight.backend import endpoints
 
-API_HOST = os.getenv('API_HOST', f"https://api.{'konik.ai' if use_konik_server() else 'commadotai.com'}")
+API_HOST, _ = endpoints()
 
 # name: jwt signature algorithm
 KEYS = {"id_rsa": "RS256",

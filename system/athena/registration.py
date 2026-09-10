@@ -36,7 +36,15 @@ def register(show_spinner=False, register_konik=False) -> str | None:
   """
   params = Params()
 
-  dongle_id: str | None = params.get("DongleId")
+  from openpilot.starpilot.insight.backend import use_konik_server
+  from openpilot.starpilot.insight.konik import resolve_local
+  if use_konik_server() or register_konik:
+    return resolve_local(params)
+
+  from openpilot.starpilot.insight.konik import stock_identity, normalize
+  dongle_id: str | None = stock_identity(params)
+  if dongle_id is None and params.get("DongleId") != params.get("KonikDongleId"):
+    dongle_id = normalize(params.get("DongleId"))
   if dongle_id is None and Path(Paths.persist_root()+"/comma/dongle_id").is_file():
     # not all devices will have this; added early in comma 3X production (2/28/24)
     with open(Paths.persist_root()+"/comma/dongle_id") as f:

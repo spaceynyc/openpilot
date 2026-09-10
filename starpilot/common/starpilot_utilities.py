@@ -400,10 +400,9 @@ def update_json_file(path, data):
   os.replace(temp_path, path)
 
 
-@cache
 def use_konik_server():
-  # Prefer the persistent toggle over volatile cache files.
-  return Params().get_bool("UseKonikServer")
+  from openpilot.starpilot.insight.backend import use_konik_server as selected_backend
+  return selected_backend()
 
 
 def wait_for_no_driver(params, sm, door_checks=False, time_threshold=60):
