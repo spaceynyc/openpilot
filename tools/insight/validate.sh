@@ -33,5 +33,12 @@ docker run --rm \
       -q --junitxml=/validation/logs/target-settings.xml > /validation/logs/target-settings.log 2>&1
     settings_result=$?
     tail -10 /validation/logs/target-settings.log
-    (( controls_result == 0 && settings_result == 0 ))
+    python3 -m pytest -c /dev/null --confcutdir=starpilot/common/tests \
+      starpilot/common/tests/test_starpilot_functions.py -k konik -q > /validation/logs/konik-switch-regression.log 2>&1
+    switch_result=$?
+    tail -5 /validation/logs/konik-switch-regression.log
+    xvfb-run -a python3 -c "import openpilot.selfdrive.ui.layouts.settings.starpilot.lateral; import openpilot.selfdrive.ui.layouts.settings.starpilot.longitudinal" > /validation/logs/ui-smoke.log 2>&1
+    ui_result=$?
+    tail -5 /validation/logs/ui-smoke.log
+    (( controls_result == 0 && settings_result == 0 && switch_result == 0 && ui_result == 0 ))
   '
