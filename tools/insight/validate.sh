@@ -16,6 +16,7 @@ docker run --rm \
     set -euo pipefail
     source /validation/venv/bin/activate
     export LD_LIBRARY_PATH=/usr/local/lib:/validation/sysroot/usr/local/lib:/validation/sysroot/usr/lib/aarch64-linux-gnu:/validation/sysroot/lib/aarch64-linux-gnu:/system/vendor/lib64
+    set +e
     python3 -m pytest -c /dev/null --confcutdir=starpilot/insight/tests \
       starpilot/insight/tests selfdrive/controls/lib/tests/test_blotv2.py \
       selfdrive/controls/tests/test_longitudinal_planner.py \
@@ -23,11 +24,14 @@ docker run --rm \
       selfdrive/controls/tests/test_radard_bosch.py \
       opendbc_repo/opendbc/car/honda/tests/test_bosch_a_radar.py \
       -q --junitxml=/validation/logs/target-controls.xml > /validation/logs/target-controls.log 2>&1
-    tail -5 /validation/logs/target-controls.log
+    controls_result=$?
+    tail -10 /validation/logs/target-controls.log
     # Galaxy import stubs are deliberately confined to a separate interpreter.
     python3 -m pytest -c /dev/null --confcutdir=starpilot/system/the_galaxy/tests \
       starpilot/system/the_galaxy/tests/test_device_settings_layout.py \
       starpilot/system/the_galaxy/tests/test_insight_settings.py \
       -q --junitxml=/validation/logs/target-settings.xml > /validation/logs/target-settings.log 2>&1
-    tail -5 /validation/logs/target-settings.log
+    settings_result=$?
+    tail -10 /validation/logs/target-settings.log
+    (( controls_result == 0 && settings_result == 0 ))
   '

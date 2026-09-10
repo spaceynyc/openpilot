@@ -54,7 +54,7 @@ def bounded(value, spec: Setting):
   if not math.isfinite(number):
     return spec.default
   number = min(max(number, spec.minimum), spec.maximum)
-  return int(number) if spec.kind == "int" else number
+  return int(number) if spec.kind == "int" else float(number)
 
 
 def capture(params) -> dict:
