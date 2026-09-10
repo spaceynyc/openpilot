@@ -12,6 +12,7 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.pid import PIDController
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.starpilot.insight.geometry import InsightGeometry
+from openpilot.starpilot.insight.diagnostics import steering_report
 from openpilot.starpilot.insight.lat_stiction import LatStiction
 from openpilot.starpilot.insight.phase_detector import phase_with_latch
 from openpilot.starpilot.insight.settings import decode, speed_band
@@ -37,6 +38,7 @@ class InsightLatControlPID(LatControl):
     if decoded is None:
       raise ValueError("Missing Insight PID configuration")
     self.profile, self.settings = decoded
+    self.diagnostic_report = steering_report(CP, type(self).__name__)
     self.modified = self.profile in (2, 3)
     self.geometry = InsightGeometry(CP, self.settings)
     tune = CP.lateralTuning.pid

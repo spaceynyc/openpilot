@@ -5731,6 +5731,13 @@ def setup(app):
       if key not in allowed_keys:
         return jsonify({"error": f"Parameter '{key}' is not editable."}), 403
 
+      # These are next-ignition settings; reject invalid edits before persistence.
+      from openpilot.starpilot.insight.settings import validate_edit as validate_insight_edit
+      try:
+        validate_insight_edit(key, data["value"])
+      except ValueError as exception:
+        return jsonify({"error": str(exception)}), 400
+
       if key == "PulseGlideSpeedDelta" or (key in PULSE_GLIDE_BUTTON_KEYS and str_val.strip() == str(BUTTON_FUNCTIONS["PULSE_AND_GLIDE"])):
         if not params.get_bool("GalaxyDeveloperMode"):
           return jsonify({"error": "Pulse and Glide is available only with Galaxy Developer Mode enabled."}), 403

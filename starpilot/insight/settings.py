@@ -91,3 +91,25 @@ def digest(CP) -> str:
 
 def speed_band(v_ego):
   return "LowSpeed" if v_ego < 25 * 0.44704 else "Standard" if v_ego < 50 * 0.44704 else "Highway"
+
+
+def validate_edit(key, value):
+  """Strict settings-interface validation; runtime capture also clamps defensively."""
+  if key == 'InsightEpsProfile':
+    if isinstance(value, bool) or str(value) not in ('0', '1', '2', '3'):
+      raise ValueError('Select an explicit EPS profile from the list')
+  elif key == 'NrdrSteerRatioMode':
+    if isinstance(value, bool) or str(value) not in ('0', '1', '3'):
+      raise ValueError('Insight geometry supports manual, learned or firmware mode')
+  elif key in SETTINGS:
+    spec = SETTINGS[key]
+    if spec.kind == 'bool':
+      if value not in (True, False, 0, 1, '0', '1'):
+        raise ValueError(f'{key} must be enabled or disabled')
+    else:
+      try:
+        numeric = float(value)
+      except (TypeError, ValueError):
+        raise ValueError(f'{key} must be numeric') from None
+      if not math.isfinite(numeric) or numeric != bounded(value, spec):
+        raise ValueError(f'{key} must be between {spec.minimum} and {spec.maximum}')

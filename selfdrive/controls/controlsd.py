@@ -901,6 +901,10 @@ class Controls:
     dat.valid = CS.canValid
     cs = dat.controlsState
 
+    if isinstance(self.LaC, InsightLatControlPID):
+      cs.insightSteerRatio = self.VM.sR
+      if self.sm.frame % 100 == 0:
+        cs.insightSteering = self.LaC.diagnostic_report
     cs.curvature = self.curvature
     cs.longitudinalPlanMonoTime = self.sm.logMonoTime['longitudinalPlan']
     cs.lateralPlanMonoTime = self.sm.logMonoTime['modelV2']

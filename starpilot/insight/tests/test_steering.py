@@ -194,3 +194,25 @@ def test_settings_snapshot_is_identical_across_processes_and_survives_serializat
     assert dict(lac.settings) == json.loads(restored.insightTuning)["settings"]
     with pytest.raises(TypeError):
       lac.settings["LatPScaleLowSpeed"] = 99
+
+
+def test_eps_software_version_ignores_separate_serial_response():
+  cp = stock_cp()
+  assert apply_profile(cp, [eps(), eps(b"\x0c SERIAL-RESPONSE")], Settings()) == "selected"
+  assert InsightLatControlPID.supports(cp)
+
+
+def test_effective_tune_report_round_trips_schema():
+  import json
+  from cereal import log
+  cp = candidate_cp(LatPScaleLowSpeed=90, NrdrLatStiction=False)
+  lac = controller(cp)
+  message = log.ControlsState.new_message()
+  message.insightSteering = lac.diagnostic_report
+  message.insightSteerRatio = 16.82
+  with log.ControlsState.from_bytes(message.to_bytes()) as restored:
+    report = json.loads(restored.insightSteering)
+    assert report['controller'] == 'InsightLatControlPID'
+    assert report['pScale'][0] == 90
+    assert not report['stiction']
+    assert restored.insightSteerRatio == pytest.approx(16.82)

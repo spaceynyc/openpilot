@@ -39,6 +39,8 @@ class InsightGeometry:
     return self.mode == 3 and self.firmware is not None
 
   def measured_curvature(self, VM, CS, params):
+    if not all(math.isfinite(v) for v in (CS.steeringAngleDeg, params.angleOffsetDeg, CS.vEgo, params.roll)):
+      return 0.0
     angle = CS.steeringAngleDeg - params.angleOffsetDeg
     if self.firmware_selected:
       angle = self.firmware.physical_to_linear(angle)

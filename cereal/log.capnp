@@ -924,6 +924,8 @@ struct SelfdriveState {
 }
 
 struct ControlsState @0x97ff69c53601abf1 {
+  insightSteering @67 :Text; # Once/second: effective tune, controller and fork commit
+  insightSteerRatio @68 :Float32; # Actual ratio used for both curvature transforms
   longitudinalPlanMonoTime @28 :UInt64;
   lateralPlanMonoTime @50 :UInt64;
 

@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path('/data/openpilot')
 PARAMS = Path('/data/params/d')
 KEYS = [
-  'IsOffroad', 'CarParams', 'CarParamsPersistent', 'CarParamsCache',
+  'IsOffroad', 'CarParams', 'CarParamsPersistent', 'CarParamsCache', 'CarParamsPrevRoute',
 ]
 TUNE_KEYS = [
   *[f'Lat{term}Scale{band}' for term in 'PIF' for band in ('LowSpeed', 'Standard', 'Highway')],
@@ -34,10 +34,7 @@ def text(key):
 
 
 def main():
-  try:
-    from cereal import car
-  except ModuleNotFoundError:
-    from openpilot.cereal import car
+  from opendbc.car import structs as car
   result = {'schema': 1, 'revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
             'branch': subprocess.check_output(['git', '-C', str(ROOT), 'branch', '--show-current'], text=True).strip(),
             'offroad': text('IsOffroad'), 'settings': {k: text(k) for k in TUNE_KEYS}, 'carParams': []}
@@ -52,8 +49,8 @@ def main():
         'controller': cp.lateralTuning.which(), 'pid': pid, 'steerRatio': float(cp.steerRatio),
         'torqueMap': cp.lateralParams.to_dict(), 'openpilotLongitudinalControl': bool(cp.openpilotLongitudinalControl),
         'radarUnavailable': bool(cp.radarUnavailable), 'flags': int(cp.flags),
-        'epsVersions': [f.fwVersion.decode('ascii', errors='replace').rstrip('\x00') for f in cp.carFw if f.ecu == 'eps'],
-        'safetyConfigs': cp.safetyConfigs.to_list(), 'alternativeExperience': int(cp.alternativeExperience),
+        'epsVersions': [f.fwVersion.decode('ascii', errors='replace').rstrip('\x00') for f in cp.carFw if f.ecu == 'eps' and f.fwVersion.startswith(b'39990-')],
+        'safetyConfigs': [cfg.to_dict() for cfg in cp.safetyConfigs], 'alternativeExperience': int(cp.alternativeExperience),
       })
   print(json.dumps(result, indent=2, allow_nan=False))
 

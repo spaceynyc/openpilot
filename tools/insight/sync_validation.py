@@ -7,6 +7,8 @@ another source tree. The emitted hashes are consumed by the provenance check.
 import argparse
 import hashlib
 import json
+import os
+import tempfile
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,8 +36,16 @@ def main():
     if original.suffix in (".so", ".a", ".o"):
       raise ValueError(f"Refusing to copy native artifact: {relative}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(original, target)
+    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as out:
+      temporary = Path(out.name)
+      out.write(original.read_bytes())
+      out.flush()
+      os.fsync(out.fileno())
+    shutil.copystat(original, temporary)
+    os.replace(temporary, target)
     manifest[relative] = hashlib.sha256(original.read_bytes()).hexdigest()
+  baseline = subprocess.check_output(["git", "show", f"{BASE}:selfdrive/controls/lib/longitudinal_planner.py"], cwd=source)
+  (dest / ".insight-baseline-planner.py").write_bytes(baseline)
   (dest / ".insight-source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
   print(f"Synchronized {len(paths)} candidate source paths; native artifacts preserved")
 

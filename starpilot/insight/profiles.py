@@ -42,7 +42,7 @@ def apply_profile(CP, car_fw, params, docs=False) -> str:
   profile = params.get("InsightEpsProfile")
   if profile not in (1, 2, 3):
     return "unverified-profile"
-  eps_versions = [normalize_honda_eps_firmware(f.fwVersion) for f in car_fw if f.ecu == "eps"]
+  eps_versions = [normalize_honda_eps_firmware(f.fwVersion) for f in car_fw if f.ecu == "eps" and f.fwVersion.startswith(b"39990-")]
   if not eps_versions or set(eps_versions) != {"39990-TXM-A040"}:
     return "unknown-eps"
   # Resolve everything before changing CP, so malformed imports leave baseline.
