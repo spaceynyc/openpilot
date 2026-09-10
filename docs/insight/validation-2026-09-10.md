@@ -1,5 +1,10 @@
 # Candidate validation — September 10, 2026
 
+**Installation follow-up:** the first device attempt exposed a source-only release
+packaging error. See the [installer repair](install-repair-2026-09-10.md) for the
+corrected prebuilt package and its validation. The results below describe the
+original candidate validation before that device attempt.
+
 Status: built and tested as an **installation candidate**. Not installed on the car;
 vehicle startup, Konik delivery and driving behavior are not yet validated.
 

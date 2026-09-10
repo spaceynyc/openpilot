@@ -1,0 +1,156 @@
+{
+  "artifactManifestSha256": "e7d455289afd5554ffd3499c1d6629f00c7f83aa6f328876c1dfd3c212020e44",
+  "artifactTag": "insight-candidate-2026.09.10.1",
+  "build": {
+    "agnos": "19.6.20",
+    "architecture": "larch64",
+    "imageId": "sha256:860e8a30e86bedf4e341c0780c7ef790f6a43a0a2d4f5256866bb4f0c4c5138d",
+    "nativeBuildLogSha256": "2864cc97ac34f1dc685a91a10bce8fcfdfb1f28287fce7b450f5d8339e4064f4",
+    "nativeBuildRevision": "fa66aab",
+    "sysroot": {
+      "agnos_system.ext4.img": {
+        "expected": "2516390281514cde7a9ea8cea5f88035cc55a5124aa23626d12ff1f82554c0e8",
+        "sha256": "2516390281514cde7a9ea8cea5f88035cc55a5124aa23626d12ff1f82554c0e8",
+        "verified": true
+      },
+      "agnos_system.img": {
+        "expected": "d744641104991cdf13e1294aeb9b2628656cab46ed7f234f0f04092a9a5ead8d",
+        "sha256": "d744641104991cdf13e1294aeb9b2628656cab46ed7f234f0f04092a9a5ead8d",
+        "verified": true
+      }
+    },
+    "uvLockSha256": "cac5b92a453e2212d1508e59f31db0fc5b46dc83a1ff17dea43e2b713a0f9770"
+  },
+  "nativeOutputs": {
+    "cereal/messaging/bridge": {
+      "bytes": 157760,
+      "sha256": "7c6cf4dd9bb904d0fd5bc2363e2e2473b531f7b2f08a5ae785c1fdf67b122361"
+    },
+    "common/params_pyx.so": {
+      "bytes": 903512,
+      "sha256": "5da131867aa8eae00661b7c131fea9911231a4fdb1041f90deccd5a01931db21"
+    },
+    "common/transformations/transformations.so": {
+      "bytes": 164200,
+      "sha256": "627117b83bc702d772486bbda3da7a3fe9f359ee6b1ed71be6a1ffc98e9ee2ef"
+    },
+    "msgq_repo/msgq/ipc_pyx.so": {
+      "bytes": 257344,
+      "sha256": "2948fbf9bdd1ace9ed43f04a87c174b5a72aaf7bbbefcbb89694c6f7f61cf36c"
+    },
+    "msgq_repo/msgq/visionipc/visionipc_pyx.so": {
+      "bytes": 589192,
+      "sha256": "234bc6d55e76d53cdc2cc9659c1369044be292b3d7aa6d8d9022d167c63a666c"
+    },
+    "rednose_repo/rednose/helpers/ekf_sym_pyx.so": {
+      "bytes": 402920,
+      "sha256": "e9aef549bbb3f6d31abcbd2f6d6beedac0a5e40fe825dd4a060b44fbee4d373f"
+    },
+    "selfdrive/controls/lib/lateral_mpc_lib/c_generated_code/acados_ocp_solver_pyx.so": {
+      "bytes": 390928,
+      "sha256": "a01ac4b57e395aa3c848c4191a741994685bfabd7567266ff0a752e82a1f0226"
+    },
+    "selfdrive/controls/lib/lateral_mpc_lib/c_generated_code/libacados_ocp_solver_lat.so": {
+      "bytes": 87760,
+      "sha256": "d42e3db4c78083aa5640d2f8d27a0a4707549ed53fde10911cae06829b62a4f7"
+    },
+    "selfdrive/controls/lib/longitudinal_mpc_lib/c_generated_code/acados_ocp_solver_pyx.so": {
+      "bytes": 390944,
+      "sha256": "45c6c16dd1f462d628273ced7377514bf4f2862bc3335876e221b66aea81be11"
+    },
+    "selfdrive/controls/lib/longitudinal_mpc_lib/c_generated_code/libacados_ocp_solver_long.so": {
+      "bytes": 91048,
+      "sha256": "f651e124d0399b8ca36878f90c278d448167649b70aea25035875b1da6da0a14"
+    },
+    "selfdrive/locationd/models/generated/libcar.so": {
+      "bytes": 238632,
+      "sha256": "fa99bfdd35c9ae87c369dfa0c518e7d254dcd777449856312e3501e16819c708"
+    },
+    "selfdrive/locationd/models/generated/libpose.so": {
+      "bytes": 234344,
+      "sha256": "b96ed900d04cd05f9de287bbee104741c21c466117b62316f9d5e1c86730fc24"
+    },
+    "selfdrive/modeld/models/commonmodel_pyx.so": {
+      "bytes": 431968,
+      "sha256": "6a322fdf11161ac5adade5ed983191564db5cf79587881f9ec45d3427236255d"
+    },
+    "selfdrive/pandad/pandad": {
+      "bytes": 1271392,
+      "sha256": "fe983abb1be4238abaacb5b612f0d395508242d83cf80459a7bccbcf482ffe44"
+    },
+    "selfdrive/pandad/pandad_api_impl.so": {
+      "bytes": 582944,
+      "sha256": "1bc24a81df8a466def4b131ef2776b6e479dc3b683e8068cea18d300abe173e1"
+    },
+    "system/camerad/camerad": {
+      "bytes": 1298440,
+      "sha256": "32cf4c6b07926bd1b1920ffed659872ad539601348ea3a0fbbbdd9206540492d"
+    },
+    "system/loggerd/bootlog": {
+      "bytes": 1039192,
+      "sha256": "c9605a34d882c9ddfb9af7df6b50c59748724682c8f291c1a0703ce89c65f52a"
+    },
+    "system/loggerd/encoderd": {
+      "bytes": 1426056,
+      "sha256": "9444dde8cc7f9d95a48b7bffa54c23d2c682a09f03ff4df2c74053d1f019e32f"
+    },
+    "system/loggerd/loggerd": {
+      "bytes": 1279248,
+      "sha256": "9b46487b56ad24484219393319d1397e3ca306c8f3cb1bab946492bcba92c81c"
+    }
+  },
+  "schema": 1,
+  "sourceHashes": {
+    "cereal/log.capnp": "af47804892a17f1279a378352a5a450da6a8e3d8480bd7c3d6d8477867e00cd4",
+    "common/api.py": "1f141d4c4ce0a8a13a7e295fc7b9366b177b6d6e47c6a94b382bd3cf52484a71",
+    "common/params_keys.h": "f578e46b61b3acfcc3afa0645c0120390b0bd6de97296df74ef3b3920670e239",
+    "opendbc_repo/opendbc/car/car.capnp": "de14f6af51ba443e8f6d1cfd2411c1ab2ec5c416f5fe274315b4f8a46670e52d",
+    "opendbc_repo/opendbc/car/honda/carcontroller.py": "9600dafc84a9b5702224c0a96886757b79d88c9772ab8eb71188ce3eadcadd70",
+    "opendbc_repo/opendbc/car/honda/interface.py": "69a7d6af4535b98b5a164f2cf906d987f93191747f1f03f2fefbeca14cd2feac",
+    "opendbc_repo/opendbc/car/honda/radar_interface.py": "fb736435fe6a65f4ddae84dd8e2b6ae07fd38c864d321a835427254c2e468734",
+    "opendbc_repo/opendbc/car/honda/tests/test_bosch_a_radar.py": "f3486b476825475a4c2e0dfaa5e4cdd6096e26ec6cf163bfec1279b3db02d80f",
+    "opendbc_repo/opendbc/car/interfaces.py": "8e49ae2a9f3bf78c9448d2670051ceee10462e085bfef2129a50c6aff665a475",
+    "opendbc_repo/opendbc/dbc/honda_bosch_a_radar.dbc": "58621c7681d5a45918cacc94c02713909540fa966565490c5fefa73bfd60426d",
+    "selfdrive/controls/controlsd.py": "3fba1abef03af9f4e49dba86841750c3d3de2e3156f98ef3248b60a997b2f856",
+    "selfdrive/controls/lib/blotv2.py": "f3a642fbf7e990f2ddf8c0a93e112b1fc15494ba096536d41fdd6775797d5c64",
+    "selfdrive/controls/lib/longitudinal_lead.py": "a7982604e2711f7a1092c113ed27b534d74c818db54196296b6e3408504c5a5c",
+    "selfdrive/controls/lib/longitudinal_planner.py": "064c5214f266fb6310cf70190b7e510da1276d1db03c65af0f7c0da914d2720a",
+    "selfdrive/controls/lib/tests/test_blotv2.py": "7dec58fcc70224d731a574940ae2fce42a6b06f4c4baf630eb07cc38fde6e8f1",
+    "selfdrive/controls/radard.py": "88aac228c24f80f3991fe41bd9321c63feaa059479ce4a621132ad77804243bd",
+    "selfdrive/controls/tests/test_radard_bosch.py": "cafa6c5afa24786f7ffce3466db98c3fd24749b6e7f3e67ce1bb61b39d55d1e9",
+    "selfdrive/ui/layouts/settings/starpilot/lateral.py": "979f1cce212251056e75ed80953dd6591d143ce39a2d0457dbc3d954d2df2cb0",
+    "selfdrive/ui/layouts/settings/starpilot/longitudinal.py": "2cf19e85cf934077c4f65f86c8bc57589ccfad3c3ade16ee02c4dbed7902d45d",
+    "selfdrive/ui/lib/starpilot_state.py": "e627fd2d1d98fb0abb0a968fae0cadd02d157b1045a6d8511f6c8ab7f92869db",
+    "starpilot/common/assets/device_settings_layout.json": "1dd0bd91dfcc4009780c868f4ce26db8bc9655e34efeb719760a37654d5daee9",
+    "starpilot/common/connect_server.py": "bff98a6cbe74beee6828609fd1643c2812e07b6383bbca11df886e0196f9e556",
+    "starpilot/common/starpilot_utilities.py": "1bf0c5a70fd7f97588957def73a0dd2d830ff6c35952c8232893df38381dc69a",
+    "starpilot/common/tests/test_starpilot_functions.py": "0be04cb04203f0c93e3d97e5029e79ecee60eb9a6bbf8276901f303dced09986",
+    "starpilot/insight/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "starpilot/insight/backend.py": "94dc360f0fc08bfb2e38869111b76fcc2699ce7edb073f1b8cdb2ed626212aa6",
+    "starpilot/insight/diagnostics.py": "9d87fbfdca1c33abe511d2d1ba7e0394521203f35014a847f020cc1f8653902e",
+    "starpilot/insight/geometry.py": "bfcd0f7434462ad72207b7d55cb4a40333ae98f5a10b294df3a412904b06b505",
+    "starpilot/insight/honda_vgr.py": "0ef2c5195c6657ecd55b4614277cfdee48e57a239bdb54f36305e8c16195d276",
+    "starpilot/insight/konik.py": "27593316e85368c41ca83c9114e0eb57ebb38cef0b57425e57cc80cc5d75c057",
+    "starpilot/insight/lat_stiction.py": "0674edc23e58c6f661616470a9b9142bd8ebe25436cc2d37dd23f8b352959429",
+    "starpilot/insight/latcontrol_pid.py": "4d694097651a9d9540ce6f041637061134fc277982580cb9e0136bc42fda156a",
+    "starpilot/insight/longitudinal.py": "3b663243cf5526a2d96b0052a60f624ef2212bb79b8d393390245f2a42c28fa4",
+    "starpilot/insight/phase_detector.py": "dcedd5b95b09c0c3129102f32c2452817bf30004aae070f2800309b6ddfdd0ae",
+    "starpilot/insight/profiles.py": "4f6c9fda0da1315e9888696f769adbfb782a96a505221b8d396db2f86627210b",
+    "starpilot/insight/settings.py": "7350b63a269c57c78852ecf8bbcc49f0593a092355eca730cb9143347ea8a5ab",
+    "starpilot/insight/tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "starpilot/insight/tests/test_konik.py": "2e35b26d6ceeff413ca2817b0984fb083952507fe3b8138b975528c7481a610f",
+    "starpilot/insight/tests/test_longitudinal.py": "c0b904d053b5cbffb269a44a63357d19d93bca5a3dcab6e28c84d4cc5109939b",
+    "starpilot/insight/tests/test_migration.py": "84bf4465b79f4efe78c0bc65718d12181ca8aef3db1cc5d113a2131f39c61f2c",
+    "starpilot/insight/tests/test_provenance.py": "8f6ceddf7d444027a720e85f740a7d48fde3727356e416e3e82ba869771c8a15",
+    "starpilot/insight/tests/test_steering.py": "ecfabde407d528263c8318cd9565814b1370d85624f77f9a4bf6472540e2ba7d",
+    "starpilot/insight/torque_filter.py": "1e3170df87c3b370434c6e11cdb1bfc21738369fe5bd9cfda902125eac4f8f14",
+    "starpilot/system/the_galaxy/tests/test_insight_settings.py": "1c726693f67e89fc2f1f5e627360f998b129726f1ba8279d2fd04d56d825b449",
+    "starpilot/system/the_galaxy/the_galaxy.py": "663fb9866f0c2e5912a104df68d33c08523ac979a5c97bdb1283669210d68bab",
+    "system/athena/athenad.py": "439e8e918c7447b4399acdd15d2635f662d02c7bc69d38b45259be099fb7a917",
+    "system/athena/manage_athenad.py": "a6a57346ea2cd6d9fd128fd48e5da7932b797ef4239e7098cc21713e4bc7ae65",
+    "system/athena/registration.py": "7db37ce15b0fd0288d40efa60f44b04c6386a0f11d235bbb673432ea380ddb05",
+    "system/manager/manager.py": "63df91160f07b3dc136c4cd68e9c2a926801a75f01c233bc64e97d10713d7c9c"
+  },
+  "sourceRevision": "0fcc9d6addc0c32f7d4d4348d9cc489f3a387ea3",
+  "status": "prebuilt-candidate-not-vehicle-validated"
+}

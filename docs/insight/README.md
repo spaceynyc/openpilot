@@ -1,6 +1,7 @@
 # StarPilot Insight integration candidate
 
 Source branch: `spaceynyc/openpilot:starpilot-insight-next`.
+Short installer branch: `insight` (`installer.comma.ai/spaceynyc/insight`).
 
 This candidate keeps the pinned StarPilot model, longitudinal planner/controller,
 acceleration envelope and panda safety implementation. The added packages are
@@ -103,9 +104,20 @@ installer branch link as a passed deployment gate.
 
 ## Build and validation
 
-The inherited `prebuilt` marker is removed. Required schemas, bindings, solver and
-native targets must be rebuilt from this candidate. No NRDR or James native
-libraries are imported. StarPilot's pinned model artifacts remain StarPilot assets.
+Installer releases include this candidate's rebuilt native outputs, their hashes
+in `insight-build-manifest.json`, and the `prebuilt` marker. The marker is added
+only after packaging verifies every output against the validated artifact. The
+AGNOS device image lacks Eigen development headers; publishing a source tree
+without this package makes first boot fail while attempting a local compile.
+No NRDR or James native libraries are imported. StarPilot's pinned model artifacts
+remain StarPilot assets.
+
+For development, remove `prebuilt` in an isolated source checkout and rebuild all
+required schemas, bindings, solvers and native targets. To prepare an installer
+release from a clean verified source revision, run
+`python3 tools/insight/package_prebuilt.py /absolute/path/to/candidate-artifacts`,
+test the packaged checkout, and commit its native outputs, manifest and marker
+together. Merely restoring the marker over old native outputs is insufficient.
 
 `tools/insight/Dockerfile` pins the Linux/aarch64 base image and supplies Cap'n Proto
 1.0.2. Install dependencies from the candidate's frozen `uv.lock` (core, testing and
