@@ -15,7 +15,9 @@ def test_candidate_sources_and_native_import_paths():
     pytest.skip('Run tools/insight/sync_validation.py to create the isolated validation tree')
   source_hashes = json.loads(manifest.read_text())
   for name, digest in source_hashes.items():
-    if digest is not None:
+    if digest is None:
+      assert not (ROOT / name).exists(), name
+    else:
       assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == digest, name
   modules = [
     'openpilot.starpilot.insight.latcontrol_pid', 'openpilot.starpilot.insight.konik',

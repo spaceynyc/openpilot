@@ -216,3 +216,28 @@ def test_effective_tune_report_round_trips_schema():
     assert report['pScale'][0] == 90
     assert not report['stiction']
     assert restored.insightSteerRatio == pytest.approx(16.82)
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_controlsd_selects_actual_adapter_and_nnff_cannot_replace_pid(monkeypatch, enabled):
+  from cereal import custom
+  from openpilot.selfdrive.controls import controlsd
+  from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
+  cp = candidate_cp() if enabled else stock_cp()
+  encoded = {'CarParams': cp.to_bytes(), 'StarPilotCarParams': custom.StarPilotCarParams.new_message().to_bytes()}
+  monkeypatch.setattr(controlsd, 'Params', lambda: SimpleNamespace(get=lambda key, **kwargs: encoded.get(key)))
+  subscriber = SimpleNamespace(extend=lambda services: subscriber)
+  monkeypatch.setattr(controlsd.messaging, 'SubMaster', lambda *args, **kwargs: subscriber)
+  monkeypatch.setattr(controlsd.messaging, 'PubMaster', lambda *args, **kwargs: SimpleNamespace())
+  monkeypatch.setattr(controlsd, 'get_starpilot_toggles', lambda: SimpleNamespace(nnff=True, nnff_lite=True))
+  controls = controlsd.Controls()
+  assert type(controls.LaC) is (InsightLatControlPID if enabled else LatControlPID)
+
+
+@pytest.mark.parametrize('signal', ['vEgo', 'steeringAngleDeg'])
+def test_invalid_measurement_never_publishes_nonfinite_curvature(signal):
+  cp = candidate_cp(NrdrSteerRatioMode=0)
+  lac, vm = controller(cp), VehicleModel(cp)
+  cs, lp = inputs()
+  setattr(cs, signal, float('nan'))
+  assert lac.measured_curvature(cs, vm, lp, active=True) == 0.
