@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "heads_verified_utc": "2026-09-10",
+  "sources": {
+    "starpilot": {
+      "repository": "firestar5683/StarPilot",
+      "branch": "StarPilot",
+      "commit": "1c35e376e9e427431c83dd199ad7d1bdb0044975"
+    },
+    "nrdr": {
+      "repository": "nrdr/openpilot",
+      "branch": "nrdr-nightly",
+      "commit": "d2b2df077e896a12c061134fb464af2735ed88f3"
+    },
+    "james": {
+      "repository": "JamesL787/openpilot",
+      "branch": "ns-bosch-radar-testing",
+      "commit": "d8604bd2036d327b92b967d6b1fcc757fd3a18bf"
+    },
+    "reference": {
+      "repository": "spaceynyc/openpilot",
+      "branch": "starpilot-insight-konik",
+      "commit": "0d47bded6ec936583fb947edf6bb4f51eb9628b9"
+    }
+  }
+}
