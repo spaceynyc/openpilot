@@ -506,6 +506,11 @@ class StarPilotLongitudinalLayout(_SettingsPage):
     
     # ── 1. Longitudinal Tuning Rows ──
     self._tune_rows = [
+      SettingRow("BoschARadar", "toggle", tr_noop("Bosch-A radar tracks"),
+                 subtitle=tr_noop("Experimental Insight radar input. Takes effect next ignition. Radar tracks do not restore factory AEB/FCW when openpilot longitudinal is enabled."),
+                 get_state=lambda: self._params.get_bool("BoschARadar"),
+                 set_state=lambda state: self._params.put_bool("BoschARadar", state),
+                 visible=lambda: starpilot_state.car_state.isInsight),
       SettingRow("BlotV2", "toggle", tr_noop("BLoTv2 lead response"),
                  subtitle=tr_noop("Experimental ACC following-time and response adjustment. Takes effect next ignition."),
                  get_state=lambda: self._params.get_bool("BlotV2"),

@@ -481,6 +481,20 @@
     ]
   },
   {
+    "name": "Insight Radar",
+    "icon": "bi-broadcast",
+    "params": [
+      {
+        "key": "BoschARadar",
+        "label": "Bosch-A radar tracks",
+        "description": "Experimental Bosch-A radar input. Takes effect next ignition. Receiving tracks does not restore factory AEB/FCW when openpilot longitudinal is enabled. NRDR HondaBoschARadar requires explicit migration.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "settings_tier": "advanced"
+      }
+    ]
+  },
+  {
     "name": "BLoTv2",
     "icon": "bi-speedometer2",
     "params": [

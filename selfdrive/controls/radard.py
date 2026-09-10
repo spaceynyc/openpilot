@@ -22,6 +22,15 @@ from opendbc.car.honda.values import HONDA_BOSCH_A
 # Default lead acceleration decay set to 50% at 1s
 _LEAD_ACCEL_TAU = 0.6
 
+# Shadow range-derived vRel, TELEMETRY ONLY, and computed for whichever radar lead is selected --
+# not only Bosch-A. Timestamps come from the message clock so replay is faithful; wall-clock time
+# made every accelerated replay of this field meaningless. The fit is plain LSQ with no outlier
+# rejection, so it inherits the range channel's ~1% gross outliers: read it as a diagnostic, not as
+# a validated velocity.
+RANGE_VREL_SAMPLES = 5   # deque length AND the minimum fit length; do not diverge these
+RANGE_VREL_MIN_SPAN_S = 0.12
+RANGE_VREL_MAX_SPAN_S = 0.60
+
 # radar tracks
 SPEED, ACCEL = 0, 1     # Kalman filter states enum
 
@@ -94,13 +103,22 @@ class Track:
 
     self.leadTrackID = 0
 
+    # Shadow telemetry only: a range-derived vRel, published alongside the radar's own vRel so the
+    # two can be compared on real drives. Nothing consumes it. Measured on 000001fe/fb/fd, U11
+    # (the Bosch-A native velocity) detects a closing onset 0.88-1.28 s late while a 4-sample range
+    # LSQ lands within 0.07-0.14 s; and on 00000141 R141-8 U11 diverged from the range by 13.7 m/s
+    # while the range moved 1.9 m. This exists to confirm or refute that on Peter's next drive
+    # before any of it is wired into control.
+    self.range_hist: deque = deque(maxlen=RANGE_VREL_SAMPLES)
+    self.vRelRange = float('nan')
+
     # deceleration history for the adjacent-lane stopped-vehicle detector
     self.moving_frames = 0
     self.rest_frames = 0
     self.seen_moving = False
 
   def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float, measured: bool,
-             measurement_update: bool | None = None):
+             measurement_update: bool | None = None, t_now: float = 0.0):
     # relative values, copy
     self.dRel = d_rel   # LONG_DIST
     self.yRel = y_rel   # -LAT_DIST
@@ -117,6 +135,22 @@ class Track:
       measurement_update = True
 
     # computed velocity and accelerations
+    # Shadow estimator: real measurements only -- a duplicate payload would forge a zero-dt sample.
+    if measurement_update:
+      self.range_hist.append((float(t_now), float(d_rel)))
+      if len(self.range_hist) >= RANGE_VREL_SAMPLES:
+        ts = np.array([p[0] for p in self.range_hist])
+        ds = np.array([p[1] for p in self.range_hist])
+        span = ts[-1] - ts[0]
+        # Reject a stale or gappy history: an LSQ across a dropout is meaningless.
+        if RANGE_VREL_MIN_SPAN_S <= span <= RANGE_VREL_MAX_SPAN_S:
+          self.vRelRange = float(np.polyfit(ts - ts[-1], ds, 1)[0])
+        else:
+          self.vRelRange = float('nan')
+          if span > RANGE_VREL_MAX_SPAN_S:
+            self.range_hist.clear()
+            self.range_hist.append((float(t_now), float(d_rel)))
+
     if measurement_update and self.cnt > 0:
       self.kf.update(self.vLead)
 
@@ -147,8 +181,14 @@ class Track:
 
       self.cnt += 1
 
-  def get_RadarState(self, model_prob: float = 0.0):
-    return {
+  def get_RadarState(self, model_prob: float = 0.0, shadow_telemetry: bool = False):
+    """`shadow_telemetry` is opt-in because this dict is assigned to TWO different capnp structs:
+    log.capnp LeadData (radarState.leadOne/leadTwo) and custom.capnp LeadData
+    (starpilotRadarState.leadLeft/leadRight). Only the former carries the shadow fields, and only
+    the followed lead should: adjacent tracks sit at up to 17-23 deg azimuth, where a range
+    derivative is radial rate and NOT longitudinal velocity, so publishing it there would be
+    misleading as well as a schema error."""
+    state = {
       "dRel": float(self.dRel),
       "yRel": float(self.yRel),
       "vRel": float(self.vRel),
@@ -162,6 +202,10 @@ class Track:
       "radar": True,
       "radarTrackId": self.identifier,
     }
+    if shadow_telemetry:
+      state["vRelRangeDerived"] = float(self.vRelRange)
+      state["measuredRadar"] = bool(self.measured)
+    return state
 
   def potential_adjacent_lead(self, left: bool, standstill: bool, model_data: capnp._DynamicStructReader):
     if standstill or self.vLead < 1 or self.leadTrackID == self.identifier:
@@ -251,6 +295,15 @@ def track_matches_vision(track: Track, lead: capnp._DynamicStructReader, v_ego: 
                          y_std_scale: float, y_floor: float) -> bool:
   offset_vision_dist = lead.x[0] - RADAR_TO_CAMERA
   dist_sane = abs(track.dRel - offset_vision_dist) < max(abs(offset_vision_dist) * dist_scale, dist_floor)
+  # NOTE: the `or` makes this check inert for any lead above 3 m/s, i.e. essentially always at road
+  # speed -- a radar track whose velocity disagrees with vision by any amount still passes. Removing
+  # it was measured on 000001fb (6 segments, 5390 radar-lead frames with a confident vision lead):
+  # only 37 frames (0.69%) would begin failing, and 0 on 000001fd. But failing here drops the radar
+  # match and leaves a vision-only lead, and on exactly those frames radar and vision disagree by
+  # >10 m/s with no evidence vision is the correct one -- on 000001fe 35:36 vision missed a real 9 m
+  # closure that radar tracked correctly. Deleting radar leads is the 000001f9 failure mode, so this
+  # is left as-is deliberately: inert, but inert in the safe direction. Do not "fix" it without
+  # first establishing which sensor is right on the frames it would start rejecting.
   vel_sane = (abs(track.vRel + v_ego - lead.v[0]) < vel_limit) or (v_ego + track.vRel > 3)
   lat_sane = abs(track.yRel + lead.y[0]) < max(y_floor, y_std_scale * max(float(lead.yStd[0]), 0.2))
   return dist_sane and vel_sane and lat_sane
@@ -311,7 +364,12 @@ def get_RadarState_from_vision(lead_msg: capnp._DynamicStructReader, v_ego: floa
     "status": True,
     "radar": False,
     "radarTrackId": -1,
+    # A vision lead has no radar range channel to derive a velocity from, and is never a radar
+    # measurement. Explicit so the telemetry is not read as "range LSQ said zero".
+    "vRelRangeDerived": float('nan'),
+    "measuredRadar": False,
   }
+
 
 
 def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capnp._DynamicStructReader,
@@ -331,7 +389,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
   lead_dict = {'status': False}
   if track is not None:
-    lead_dict = track.get_RadarState(filtered_lead_prob)
+    lead_dict = track.get_RadarState(filtered_lead_prob, shadow_telemetry=True)
   elif (track is None) and ready and (filtered_lead_prob > lead_detection_probability):
     lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego, filtered_lead_prob)
 
@@ -359,7 +417,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
                                 lead_dict.get('radarTrackId', -1) == preferred_track_id or
                                 (lead_dict.get('status', False) and not lead_dict.get('radar', False)))
         if preferred_is_current and preferred_matches_model:
-          lead_dict = preferred_track.get_RadarState(filtered_lead_prob)
+          lead_dict = preferred_track.get_RadarState(filtered_lead_prob, shadow_telemetry=True)
 
     def candidate_is_established(candidate: Track) -> bool:
       if not honda_bosch_a_radar:
@@ -385,7 +443,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
       # Only choose new track if it is actually closer than the previous one
       if (not lead_dict['status']) or (closest_track.dRel < lead_dict['dRel']):
-        lead_dict = closest_track.get_RadarState()
+        lead_dict = closest_track.get_RadarState(shadow_telemetry=True)
 
   for track in tracks.values():
     track.leadTrackID = lead_dict.get('radarTrackId', -1)
@@ -558,7 +616,7 @@ class RadarD:
       # Non-Bosch sources retain the historical per-model-cycle update semantics. Only Civic Bosch
       # suppresses duplicate measurement updates when liveTracks has not advanced.
       measurement_update = True if not self.honda_bosch_a_radar else measured
-      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead, measured, measurement_update)
+      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead, measured, measurement_update, t_now=sm.logMonoTime['liveTracks'] * 1e-9)
 
     # *** publish radarState ***
     self.radar_state_valid = sm.all_checks()

@@ -45,17 +45,15 @@ class CarInterface(CarInterfaceBase):
         cfgs.insert(0, get_safety_config(structs.CarParams.SafetyModel.noOutput))
       ret.safetyConfigs = cfgs
 
-      # HONDA_BOSCH_A describes the physical harness family. Radar remains unavailable until the
-      # exact platform is added to HONDA_BOSCH_A_RADAR_VERIFIED after real-capture validation.
+      # James's decoder is available to Bosch-A platforms through an explicit
+      # opt-in. Preserve stable's already enabled, verified Civic/CR-V path.
       try:
-        # The explicit default keeps the verified platform usable on installs that have not yet
-        # persisted the internal kill-switch parameter; the verified-platform set remains mandatory.
-        bosch_a_radar_tryout = not docs and Params().get_bool("HondaBoschARadar", default=True)
+        explicit_bosch_a = not docs and Params().get_bool("BoschARadar")
+        stable_verified = (not docs and candidate in HONDA_BOSCH_A_RADAR_VERIFIED and
+                           Params().get_bool("HondaBoschARadar", default=True))
       except UnknownKeyName:
-        bosch_a_radar_tryout = False
-      ret.radarUnavailable = not (candidate in HONDA_BOSCH_A and
-                                  candidate in HONDA_BOSCH_A_RADAR_VERIFIED and
-                                  bosch_a_radar_tryout)
+        explicit_bosch_a = stable_verified = False
+      ret.radarUnavailable = not (candidate in HONDA_BOSCH_A and (explicit_bosch_a or stable_verified))
       # Disable the radar and let openpilot control longitudinal
       # WARNING: THIS DISABLES AEB!
       # If Bosch radarless, this blocks ACC messages from the camera
