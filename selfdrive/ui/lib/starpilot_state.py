@@ -14,6 +14,7 @@ from openpilot.starpilot.common.lateral_delay import full_lateral_delay
 @dataclass
 class StarPilotCarState:
     # ========== Car Type Detection ==========
+    isInsight: bool = False
     isGM: bool = False
     isFord: bool = False
     isHKG: bool = False
@@ -102,6 +103,7 @@ class StarPilotState:
             self.car_state.isVolt = False
 
         if fallback_model:
+            self.car_state.isInsight = fallback_model == "HONDA_INSIGHT"
             self.params.put("CarModel", fallback_model)
             self.car_state.isJeep = fallback_model.startswith("JEEP_")
 
@@ -164,6 +166,7 @@ class StarPilotState:
             self.car_state.hasZSS = starpilot_toggles.get("has_zss", False)
             self.car_state.isAngleCar = self._safe_get(CP, "steerControlType", None) == car.CarParams.SteerControlType.angle
             self.car_state.isBolt = car_fingerprint.startswith("CHEVROLET_BOLT")
+            self.car_state.isInsight = car_fingerprint == "HONDA_INSIGHT"
             self.car_state.isGM = car_make == "gm"
             self.car_state.isFord = car_make == "ford"
             self.car_state.isHKG = car_make == "hyundai"

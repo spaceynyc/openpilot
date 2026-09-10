@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from openpilot.system.hardware import HARDWARE
+from openpilot.starpilot.insight.settings import SETTINGS, PROFILE_LABELS
 from openpilot.selfdrive.ui.lib.starpilot_state import starpilot_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr, tr_noop
@@ -72,6 +73,9 @@ class SteeringManagerView(CardHubManagerView):
         "on_click": lambda: self._controller._navigate_to("advanced"),
       },
     ]
+    if starpilot_state.car_state.isInsight:
+      cards.append({"title": tr("Insight Steering"), "desc": tr("EPS profile, PID scaling, geometry and output smoothing."),
+                    "icon": "steering", "on_click": lambda: self._controller._navigate_to("insight")})
     return cards
 
 
@@ -322,6 +326,36 @@ class StarPilotLateralLayout(_SettingsPage):
       ),
     ]
 
+    # Insight settings are captured together in CarParams at ignition. Both
+    # card and controlsd consume that same snapshot for the entire drive.
+    self._insight_rows = [
+      SettingRow("InsightSteeringEnabled", "toggle", tr_noop("Insight steering package"),
+        subtitle=tr_noop("Requires an explicitly verified EPS profile. Takes effect next ignition."),
+        get_state=lambda: p.get_bool("InsightSteeringEnabled"),
+        set_state=lambda state: p.put_bool("InsightSteeringEnabled", state)),
+      SettingRow("InsightEpsProfile", "value", tr_noop("EPS profile"),
+        subtitle=tr_noop("Select the installed variant after verification; a part number is insufficient."),
+        get_value=lambda: PROFILE_LABELS.get(p.get_int("InsightEpsProfile"), "Unverified"),
+        on_click=lambda: self._show_labeled_select("EPS profile", "InsightEpsProfile", list(PROFILE_LABELS.items()), p.get_int("InsightEpsProfile"))),
+    ]
+    for key, spec in SETTINGS.items():
+      if key == "NrdrSteerRatioMode":
+        self._insight_rows.append(SettingRow(key, "value", tr_noop("Steering geometry"),
+          subtitle=tr_noop("Takes effect next ignition. Firmware mode requires a recognized EPS."),
+          get_value=lambda: {0: "Manual", 1: "Learned", 3: "Firmware"}.get(p.get_int("NrdrSteerRatioMode"), "Unavailable"),
+          on_click=lambda: self._show_labeled_select("Steering geometry", "NrdrSteerRatioMode",
+            [(0, "Manual"), (1, "Learned"), (3, "Firmware")], p.get_int("NrdrSteerRatioMode"))))
+      elif spec.kind == "bool":
+        self._insight_rows.append(SettingRow(key, "toggle", spec.label,
+          subtitle=tr_noop("Takes effect next ignition."),
+          get_state=lambda k=key: p.get_bool(k),
+          set_state=lambda state, k=key: p.put_bool(k, state)))
+      else:
+        self._insight_rows.append(SettingRow(key, "value", spec.label,
+          subtitle=tr_noop("Takes effect next ignition."),
+          get_value=lambda k=key: str(p.get(k)),
+          on_click=lambda k=key, cfg=spec: self._show_slider(k, cfg.minimum, cfg.maximum, step=cfg.step, value_type=cfg.kind)))
+
     self._manager_view = SteeringManagerView(
       self,
       header_title=tr_noop("Steering"),
@@ -363,6 +397,12 @@ class StarPilotLateralLayout(_SettingsPage):
       header_title=tr_noop("Advanced Lateral Tuning"),
       header_subtitle=tr_noop("Adjust actuator delay, steer ratio, Kp, friction, and neural network feedforward controllers."),
       parent_toggle=pt_advanced,
+      panel_style=PANEL_STYLE,
+    )
+    self._sub_panels["insight"] = AetherSettingsView(
+      self, [SettingSection(title="", rows=self._insight_rows)],
+      header_title=tr_noop("Insight Steering"),
+      header_subtitle=tr_noop("Settings take effect next ignition. Stiction starts off."),
       panel_style=PANEL_STYLE,
     )
     self._wire_sub_panels()

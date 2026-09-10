@@ -481,6 +481,371 @@
     ]
   },
   {
+    "name": "Insight Steering",
+    "icon": "bi-car-front",
+    "params": [
+      {
+        "key": "InsightSteeringEnabled",
+        "label": "Insight steering package",
+        "description": "Use the Insight PID adapter with the explicitly selected EPS profile. Requires verified installed EPS variant. Takes effect next ignition.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "is_parent_toggle": true,
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "InsightEpsProfile",
+        "label": "Insight EPS profile",
+        "description": "0: unverified/baseline; 1: stock; 2: legacy linear-max; 3: PTM. The EPS part number alone does not identify the installed modification. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "dropdown",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "options": [
+          {
+            "value": 0,
+            "label": "Unverified / baseline"
+          },
+          {
+            "value": 1,
+            "label": "Stock EPS"
+          },
+          {
+            "value": 2,
+            "label": "Legacy linear-max EPS"
+          },
+          {
+            "value": 3,
+            "label": "PTM EPS"
+          }
+        ]
+      },
+      {
+        "key": "LatPScaleLowSpeed",
+        "label": "P at 0–25 mph",
+        "description": "P at 0–25 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatPScaleStandard",
+        "label": "P at 25–50 mph",
+        "description": "P at 25–50 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatPScaleHighway",
+        "label": "P at 50+ mph",
+        "description": "P at 50+ mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatIScaleLowSpeed",
+        "label": "I at 0–25 mph",
+        "description": "I at 0–25 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatIScaleStandard",
+        "label": "I at 25–50 mph",
+        "description": "I at 25–50 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatIScaleHighway",
+        "label": "I at 50+ mph",
+        "description": "I at 50+ mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatFScaleLowSpeed",
+        "label": "F at 0–25 mph",
+        "description": "F at 0–25 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatFScaleStandard",
+        "label": "F at 25–50 mph",
+        "description": "F at 25–50 mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "LatFScaleHighway",
+        "label": "F at 50+ mph",
+        "description": "F at 50+ mph. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 500,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "HondaCenterScale",
+        "label": "Center compensation",
+        "description": "Center compensation. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 5,
+        "step": 0.05,
+        "precision": 2
+      },
+      {
+        "key": "HondaCenterBoostThreshold",
+        "label": "Center angle threshold",
+        "description": "Center angle threshold. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 10,
+        "step": 0.1,
+        "precision": 2
+      },
+      {
+        "key": "HondaCenterBoostMinSpeed",
+        "label": "Center minimum speed (mph)",
+        "description": "Center minimum speed (mph). Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 90,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "NrdrLatRateDamping",
+        "label": "Rate damping (%)",
+        "description": "Rate damping (%). Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 300,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "NrdrLatRateDampingFadeSpeed",
+        "label": "Damping fade speed (mph)",
+        "description": "Damping fade speed (mph). Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 60,
+        "step": 5,
+        "precision": 0
+      },
+      {
+        "key": "NrdrLatStiction",
+        "label": "Stiction compensation",
+        "description": "Stiction compensation. Takes effect next ignition.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "HondaTorqueLowPassFilter",
+        "label": "Steering output smoothing",
+        "description": "Steering output smoothing. Takes effect next ignition.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "HondaLpfTauLowSpeed",
+        "label": "Smoothing at 0–25 mph (s)",
+        "description": "Smoothing at 0–25 mph (s). Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "precision": 2
+      },
+      {
+        "key": "HondaLpfTauStandard",
+        "label": "Smoothing at 25–50 mph (s)",
+        "description": "Smoothing at 25–50 mph (s). Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "precision": 2
+      },
+      {
+        "key": "HondaLpfTauHighway",
+        "label": "Smoothing at 50+ mph (s)",
+        "description": "Smoothing at 50+ mph (s). Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "precision": 2
+      },
+      {
+        "key": "HondaSteerDeltaLimiter",
+        "label": "Additional steering rate limit",
+        "description": "Additional steering rate limit. Takes effect next ignition.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "HondaSteerDeltaUp",
+        "label": "Steering increase per second",
+        "description": "Steering increase per second. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0.1,
+        "max": 3,
+        "step": 0.1,
+        "precision": 2
+      },
+      {
+        "key": "HondaSteerDeltaDown",
+        "label": "Steering decrease per second",
+        "description": "Steering decrease per second. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 0.1,
+        "max": 3,
+        "step": 0.1,
+        "precision": 2
+      },
+      {
+        "key": "NrdrSteerRatioMode",
+        "label": "Geometry: 0 manual, 1 learned, 3 firmware",
+        "description": "Geometry: 0 manual, 1 learned, 3 firmware. Takes effect next ignition.",
+        "data_type": "int",
+        "ui_type": "dropdown",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "options": [
+          {
+            "value": 0,
+            "label": "Manual"
+          },
+          {
+            "value": 1,
+            "label": "Learned"
+          },
+          {
+            "value": 3,
+            "label": "Firmware"
+          }
+        ]
+      },
+      {
+        "key": "NrdrSteerRatioManualCenter",
+        "label": "Manual center steering ratio",
+        "description": "Manual center steering ratio. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 8,
+        "max": 25,
+        "step": 0.01,
+        "precision": 2
+      },
+      {
+        "key": "NrdrSteerRatioManualFinal",
+        "label": "Manual outer steering ratio",
+        "description": "Manual outer steering ratio. Takes effect next ignition.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "parent_key": "InsightSteeringEnabled",
+        "settings_tier": "advanced",
+        "min": 8,
+        "max": 25,
+        "step": 0.01,
+        "precision": 2
+      }
+    ]
+  },
+  {
     "name": "Longitudinal (Speed & Following)",
     "icon": "bi-speedometer2",
     "params": [

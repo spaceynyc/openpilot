@@ -235,6 +235,8 @@ class CarController(CarControllerBase):
     self.last_torque = 0.0
     self.torque_lpf = 0.0
     self.prev_torque_cmd = 0.0
+    from openpilot.starpilot.insight.torque_filter import InsightTorqueFilter
+    self.insight_filter = InsightTorqueFilter(CP, DT_CTRL)
     self.steering_pressed_filter_s = 0.0
     self.steering_pressed_robust_prev = False
     self.bosch_last_gas = 0.0
@@ -302,8 +304,12 @@ class CarController(CarControllerBase):
         self.steering_pressed_filter_s = 0.0
         self.steering_pressed_robust_prev = False
 
+    torque_cmd = self.insight_filter.update(torque_cmd, CS.out.vEgo, CC.latActive, CS.out.steeringPressed)
+
     # *** rate limit steer ***
     limited_torque = rate_limit(torque_cmd, self.last_torque, -self.params.STEER_DELTA_DOWN * DT_CTRL, self.params.STEER_DELTA_UP * DT_CTRL)
+    if self.insight_filter.settings is not None and (not CC.latActive or CS.out.steeringPressed):
+      limited_torque = 0.0
     self.last_torque = limited_torque
 
     # *** apply brake hysteresis ***

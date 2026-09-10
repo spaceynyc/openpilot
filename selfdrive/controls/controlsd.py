@@ -26,6 +26,7 @@ from openpilot.selfdrive.controls.lib.drive_helpers import (
 from openpilot.selfdrive.controls.lib.lane_centering import LaneCenteringController
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
+from openpilot.starpilot.insight.latcontrol_pid import InsightLatControlPID
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, STEER_ANGLE_SATURATION_THRESHOLD
 from openpilot.selfdrive.controls.lib.latcontrol_curvature import LatControlCurvature
 from openpilot.selfdrive.controls.lib.latcontrol_torque import (
@@ -419,7 +420,8 @@ class Controls:
     elif self.CP.steerControlType == car.CarParams.SteerControlType.curvatureDEPRECATED:
       self.LaC = LatControlCurvature(self.CP, self.CI, DT_CTRL)
     elif self.CP.lateralTuning.which() == 'pid':
-      self.LaC = LatControlPID(self.CP, self.CI, DT_CTRL)
+      controller = InsightLatControlPID if InsightLatControlPID.supports(self.CP) else LatControlPID
+      self.LaC = controller(self.CP, self.CI, DT_CTRL)
     elif self.CP.lateralTuning.which() == 'torque':
       self.LaC = LatControlTorque(self.CP, self.CI, DT_CTRL)
 
@@ -544,6 +546,9 @@ class Controls:
                                         CS.steerFaultTemporary, CS.steerFaultPermanent,
                                         standstill, self.CP.steerAtStandstill,
                                         self.sm['starpilotPlan'].lateralCheck)
+    if isinstance(self.LaC, InsightLatControlPID):
+      self.curvature = self.LaC.measured_curvature(CS, self.VM, lp, CC.latActive)
+
     # EcuDisableFailed is set when car started in READY mode (ECU disable was rejected)
     # Disable longitudinal so stock ACC works instead
     self.update_ecu_disable_failed()

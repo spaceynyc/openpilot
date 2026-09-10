@@ -204,6 +204,10 @@ class CarInterfaceBase(ABC):
     ):
       CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
+    if candidate == HONDA.HONDA_INSIGHT:
+      from openpilot.starpilot.insight.profiles import apply_profile
+      apply_profile(ret, car_fw, Params(return_defaults=True), docs)
+
     return ret
 
   @classmethod
