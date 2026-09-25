@@ -11,6 +11,9 @@ HONDA_BOSCH_A_LOW_SPEED_MIN_SWEEPS = 3
 HONDA_BOSCH_A_CHALLENGER_STALE_CYCLES = 2
 HONDA_BOSCH_A_GROSS_DISTANCE_STALE_CYCLES = 3
 HONDA_BOSCH_A_GROSS_DISTANCE_M = 25.0
+# A radar track that is not already the lead must agree with the vision lead's speed to take over;
+# the moving-object exemption let ~3-7 m/s clutter replace a ~17 m/s lead for a few frames at a time.
+HONDA_BOSCH_A_NEW_TRACK_VEL_LIMIT = 6.0
 
 
 def is_honda_bosch_a_radar(CP) -> bool:
@@ -31,10 +34,11 @@ def vision_track_probability(track, lead, v_ego: float) -> float:
 
 
 def track_matches_vision(track, lead, v_ego: float, *, dist_scale: float, dist_floor: float,
-                         vel_limit: float, y_std_scale: float, y_floor: float) -> bool:
+                         vel_limit: float, y_std_scale: float, y_floor: float,
+                         moving_exemption: bool = True) -> bool:
   vision_distance = lead.x[0] - _RADAR_TO_CAMERA
   distance_sane = abs(track.dRel - vision_distance) < max(abs(vision_distance) * dist_scale, dist_floor)
-  velocity_sane = abs(track.vRel + v_ego - lead.v[0]) < vel_limit or v_ego + track.vRel > 3.0
+  velocity_sane = abs(track.vRel + v_ego - lead.v[0]) < vel_limit or (moving_exemption and v_ego + track.vRel > 3.0)
   lateral_sane = abs(track.yRel + lead.y[0]) < max(y_floor, y_std_scale * max(float(lead.yStd[0]), 0.2))
   return distance_sane and velocity_sane and lateral_sane
 
@@ -158,9 +162,12 @@ class NrdrRadar:
       return None
 
     strict_candidate = max(tracks.values(), key=lambda candidate: vision_track_probability(candidate, lead, v_ego))
+    continuing = strict_candidate.identifier == self.prev_lead_track_ids[lead_index]
     if track_matches_vision(
       strict_candidate, lead, v_ego,
-      dist_scale=0.25, dist_floor=5.0, vel_limit=10.0, y_std_scale=1.0, y_floor=1.0,
+      dist_scale=0.25, dist_floor=5.0,
+      vel_limit=10.0 if continuing else HONDA_BOSCH_A_NEW_TRACK_VEL_LIMIT,
+      y_std_scale=1.0, y_floor=1.0, moving_exemption=continuing,
     ):
       return strict_candidate
 

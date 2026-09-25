@@ -386,3 +386,23 @@ def test_preference_resets_when_selected_track_disappears():
   assert radar.prev_lead_track_ids[0] == -1
   assert radar.preferred_stale_track_ids[0] == -1
   assert radar.preferred_challenger_stale_counts[0] == 0
+
+
+def test_new_slow_clutter_track_cannot_replace_moving_vision_lead():
+  # Vision lead at 17 m/s; a 3.5 m/s roadside/adjacent track lines up in distance and lateral position
+  radar = make_radar()
+  clutter = make_positioned_track(9, 25.0, 3, v_ego=17.0, v_rel=-13.5)
+  assert radar.associate_model_lead(0, {9: clutter}, make_model_lead(25.0, v_ego=17.0), 17.0) is None
+
+
+def test_continuing_lead_track_braking_harder_than_vision_stays_associated():
+  radar = make_radar()
+  braking = make_positioned_track(9, 25.0, 3, v_ego=17.0, v_rel=-13.5)
+  radar.prev_lead_track_ids[0] = 9
+  assert radar.associate_model_lead(0, {9: braking}, make_model_lead(25.0, v_ego=17.0), 17.0) is braking
+
+
+def test_new_track_agreeing_with_vision_speed_is_still_associated():
+  radar = make_radar()
+  candidate = make_positioned_track(9, 25.0, 3, v_ego=17.0, v_rel=-3.0)
+  assert radar.associate_model_lead(0, {9: candidate}, make_model_lead(25.0, v_ego=17.0), 17.0) is candidate
