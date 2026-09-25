@@ -7,6 +7,7 @@ from openpilot.common.constants import CV
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
 from openpilot.selfdrive.controls.lib.drive_helpers import get_accel_from_plan
 from openpilot.selfdrive.modeld.constants import ModelConstants
+from openpilot.nrdr.features.radar.radar import is_honda_bosch_a_radar
 from openpilot.nrdr.params import NrdrParamKey, get_live_params, read_bool, read_float
 
 
@@ -15,6 +16,9 @@ LAUNCH_COMMIT_TIME = 3.5
 LAUNCH_MOVING_SPEED = 1.2
 LAUNCH_MAX_ACCEL = 3.5
 CRUISE_ACCEL_VALUES = (2.0, 1.6, 0.8, 0.6)
+# Honda Bosch-A: positive cruise accel is at most gain (1/s) * remaining speed gap + offset (m/s^2)
+CRUISE_APPROACH_GAIN = 0.5
+CRUISE_APPROACH_OFFSET = 0.1
 CRUISE_OVERSPEED_BRAKING_BUFFER = 0.1
 CRUISE_OVERSPEED_DRIVING_BUFFER = 0.5
 ROEN_ACCEL_BP = (0.0, 5.0, 20.0)
@@ -87,6 +91,8 @@ class NrdrLongitudinalPlanner:
     self.standstill_gap_extra = 0.0
     self.roen_acceleration_limits = True
     self.launch_armed = False
+    self.honda_bosch_a_radar = is_honda_bosch_a_radar(CP)
+    self.last_cruise_target = None
     self._refresh_settings()
 
   def refresh(self) -> None:
@@ -123,18 +129,28 @@ class NrdrLongitudinalPlanner:
 
   def personality_accel_ceiling(self, v_ego: float, personality) -> float | None:
     """Return the C3 positive cruise/ACC ceiling without changing platform, coast, or braking limits."""
-    return c3_personality_accel_max(v_ego, personality)
+    ceiling = c3_personality_accel_max(v_ego, personality)
+    target = getattr(self, "last_cruise_target", None)
+    if not getattr(self, "honda_bosch_a_radar", False) or target is None:
+      return ceiling
+    # Ease into the set speed like a driver lifting off the pedal, instead of holding the ceiling until the last mph
+    gap = target - float(v_ego)
+    if not np.isfinite(gap) or gap <= 0.0:
+      return ceiling
+    approach = CRUISE_APPROACH_GAIN * gap + CRUISE_APPROACH_OFFSET
+    return approach if ceiling is None else min(ceiling, approach)
 
   def turn_accel_threshold(self) -> float:
     return ROEN_TURN_ACCEL_THRESHOLD if self.roen_enabled else 0.0
 
   def cruise_target(self, target: float, set_speed: float, v_ego: float, accel: float) -> float:
-    if target <= 0.0:
-      return target
-    scaled_target = min(target * self.cruise_scale, V_CRUISE_MAX * CV.KPH_TO_MS)
-    return apply_cruise_overspeed_allowance(
-      scaled_target, target, set_speed, v_ego, accel, self.cruise_overspeed_allowance,
-    )
+    if target > 0.0:
+      scaled_target = min(target * self.cruise_scale, V_CRUISE_MAX * CV.KPH_TO_MS)
+      target = apply_cruise_overspeed_allowance(
+        scaled_target, target, set_speed, v_ego, accel, self.cruise_overspeed_allowance,
+      )
+    self.last_cruise_target = float(target)
+    return target
 
   def launch_accel(self, sm, mpc_time_indices, action_time: float, v_ego: float,
                    should_stop: bool, output_accel: float, e2e_active: bool) -> float:

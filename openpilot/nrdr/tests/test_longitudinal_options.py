@@ -650,3 +650,33 @@ def test_overspeed_allowance_is_capped_from_raw_set_speed():
 
 def test_overspeed_allowance_never_reduces_existing_target():
   assert apply_cruise_overspeed_allowance(22.0, 20.0, 20.0, 23.0, 0.2, 1.0) == 22.0
+
+
+def _bosch_a_planner(set_speed: float, *, bosch_a: bool = True):
+  planner = _planner(enabled=False, nidec=False)
+  planner.honda_bosch_a_radar = bosch_a
+  planner.cruise_scale = 1.0
+  planner.cruise_overspeed_allowance = 0.0
+  planner.cruise_target(set_speed, set_speed, 0.0, 0.0)
+  return planner
+
+
+def test_bosch_a_cruise_ceiling_tapers_toward_set_speed():
+  personality = log.LongitudinalPersonality.aggressive
+  planner = _bosch_a_planner(20.0)
+  # 6 m/s below set speed: taper (0.5 * 6 + 0.1 = 3.1) is above any real ceiling
+  assert planner.personality_accel_ceiling(14.0, personality) == pytest.approx(3.1)
+  # 1 m/s below set speed: ease off instead of holding the ceiling
+  assert planner.personality_accel_ceiling(19.0, personality) == pytest.approx(0.6)
+  standard = log.LongitudinalPersonality.standard
+  assert planner.personality_accel_ceiling(19.0, standard) == pytest.approx(
+    min(c3_personality_accel_max(19.0, standard), 0.6))
+
+
+def test_bosch_a_cruise_ceiling_untouched_at_or_above_set_speed_and_on_other_cars():
+  personality = log.LongitudinalPersonality.relaxed
+  planner = _bosch_a_planner(20.0)
+  assert planner.personality_accel_ceiling(20.0, personality) == c3_personality_accel_max(20.0, personality)
+  assert planner.personality_accel_ceiling(22.0, personality) == c3_personality_accel_max(22.0, personality)
+  other = _bosch_a_planner(20.0, bosch_a=False)
+  assert other.personality_accel_ceiling(19.0, personality) == c3_personality_accel_max(19.0, personality)
