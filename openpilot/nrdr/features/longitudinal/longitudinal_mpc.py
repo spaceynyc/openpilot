@@ -21,6 +21,11 @@ BOSCH_RAW_MLT_MAX_TTC = 5.0
 BOSCH_FCW_MIN_MODEL_PROB = 0.9
 BOSCH_FCW_MIN_CLOSING_SPEED = 0.5
 BOSCH_FCW_MAX_TTC = 4.0
+# In stop-and-go, don't credit a creeping lead with the acceleration the model predicts for it.
+BOSCH_CREEP_ENTER_SPEED = 7.0
+BOSCH_CREEP_EXIT_SPEED = 8.5
+BOSCH_CREEP_ENTER_DISTANCE = 20.0
+BOSCH_CREEP_EXIT_DISTANCE = 25.0
 
 PERSONALITY_NAMES = {
   0: "aggressive",
@@ -116,6 +121,7 @@ class NrdrLongitudinalMpc:
     self.brake_durations = [0.0, 0.0]
     self.effective_brakes = [0.0, 0.0]
     self.track_ages = [0.0, 0.0]
+    self.creep_active = [False, False]
 
   def jerk_factors(self, personality, default: float, v_ego: float) -> tuple[float, float]:
     default = PERSONALITY_JERK.get(_personality_name(personality), default)
@@ -204,12 +210,38 @@ class NrdrLongitudinalMpc:
     ttc = max(0.0, distance) / max(closing_speed, 1e-3)
     return ttc < BOSCH_FCW_MAX_TTC
 
+  def _bosch_creep_gate(self, slot: int, distance: float, velocity: float, v_ego: float) -> bool:
+    if self.creep_active[slot]:
+      active = (v_ego < BOSCH_CREEP_EXIT_SPEED and velocity < BOSCH_CREEP_EXIT_SPEED and
+                distance < BOSCH_CREEP_EXIT_DISTANCE)
+    else:
+      active = (v_ego < BOSCH_CREEP_ENTER_SPEED and velocity < BOSCH_CREEP_ENTER_SPEED and
+                distance < BOSCH_CREEP_ENTER_DISTANCE)
+    self.creep_active[slot] = active
+    return active
+
+  def _bosch_creep_trajectory(self, raw_fallback, radar_lead, v_ego: float) -> np.ndarray:
+    # A lead inching forward may stop again: never plan for it to speed up, only for it to slow down.
+    raw_trajectory = self._finite_raw_fallback(raw_fallback, radar_lead, v_ego)
+    lead_v = np.clip(np.minimum(raw_trajectory[:, 1], max(0.0, float(radar_lead.vLead))), 0.0, 1e8)
+    lead_x = float(radar_lead.dRel) + np.cumsum(self.time_diffs * lead_v)
+    minimum_x = self.min_lead_factor * (v_ego + lead_v[0]) * (v_ego - lead_v[0]) / (-self.accel_min * 2)
+    lead_x[0] = max(lead_x[0], minimum_x)
+    return np.column_stack((np.maximum.accumulate(lead_x), lead_v))
+
   def _lead_trajectory(self, model_lead, radar_lead, slot: int, v_ego: float,
                        raw_fallback: np.ndarray | None = None) -> np.ndarray:
     if not radar_lead.present:
+      self.creep_active[slot] = False
       lead_x = 50.0 + (v_ego + 10.0) * self.lead_time_indices
       lead_v = np.full_like(self.lead_time_indices, v_ego + 10.0)
       return self._to_mpc_trajectory(lead_x, lead_v, v_ego)
+
+    if self.honda_bosch_a_radar:
+      distance, velocity = float(radar_lead.dRel), float(radar_lead.vLead)
+      if (math.isfinite(distance) and math.isfinite(velocity) and
+          self._bosch_creep_gate(slot, distance, velocity, v_ego)):
+        return self._bosch_creep_trajectory(raw_fallback, radar_lead, v_ego)
 
     if self.honda_bosch_a_radar and getattr(radar_lead, "radar", False):
       if (not self._bosch_model_horizon_valid(model_lead, radar_lead, v_ego) or

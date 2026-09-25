@@ -230,3 +230,42 @@ def test_mpc_and_planner_both_consume_bosch_fcw_authority():
   assert "lead_probability > 0.9 and (self.nrdr is None or self.nrdr.fcw_authorized(radarstate.leadOne, v_ego))" in mpc_source
   assert "self.mpc.nrdr.fcw_authorized(sm['radarState'].leadOne, v_ego)" in planner_source
   assert "honda_bosch_a_radar=self.honda_bosch_a_radar" in planner_source
+
+
+def creeping_raw(distance, speed, accel):
+  speeds = np.clip(speed + accel * MPC_TIMES, 0.0, None)
+  return np.column_stack((distance + np.cumsum(np.diff(MPC_TIMES, prepend=[0.0]) * speeds), speeds))
+
+
+def test_bosch_creeping_lead_gets_no_acceleration_credit():
+  # A lead inching forward at 1 m/s while the model predicts it pulling away at 2 m/s^2
+  policy = make_policy(honda_bosch_a_radar=True)
+  lead = radar_lead(distance=5.0, speed=1.0, accel=1.5, track_id=-1, radar=False)
+  trajectory = policy._lead_trajectory(model_lead(speed=1.0, accel=2.0), lead, 0, 1.5,
+                                       creeping_raw(5.0, 1.0, 1.5))
+  assert np.all(trajectory[:, 1] <= 1.0 + 1e-9)
+
+  unchanged = make_policy()._lead_trajectory(model_lead(speed=1.0, accel=2.0), lead, 0, 1.5)
+  assert unchanged[-1, 1] > 5.0
+
+
+def test_bosch_creeping_lead_keeps_measured_braking():
+  policy = make_policy(honda_bosch_a_radar=True)
+  lead = radar_lead(distance=8.0, speed=3.0, accel=-1.0, track_id=4)
+  raw = creeping_raw(8.0, 3.0, -1.0)
+  trajectory = policy._lead_trajectory(model_lead(speed=3.0), lead, 0, 3.0, raw)
+  np.testing.assert_allclose(trajectory[:, 1], raw[:, 1])
+
+
+def test_bosch_creep_gate_has_hysteresis_and_releases_at_speed():
+  policy = make_policy(honda_bosch_a_radar=True)
+  assert policy._bosch_creep_gate(0, 10.0, 6.5, 6.5)
+  assert policy._bosch_creep_gate(0, 22.0, 8.0, 8.0)
+  assert not policy._bosch_creep_gate(0, 22.0, 9.0, 9.0)
+  assert not policy._bosch_creep_gate(0, 22.0, 8.0, 8.0)
+
+
+def test_bosch_highway_lead_still_uses_model_horizon():
+  policy = make_policy(honda_bosch_a_radar=True)
+  trajectory = policy._lead_trajectory(model_lead(speed=25.0, accel=0.5), radar_lead(distance=45.0, speed=25.0), 0, 25.0)
+  assert trajectory[-1, 1] > 25.0
