@@ -19,6 +19,12 @@ CRUISE_ACCEL_VALUES = (2.0, 1.6, 0.8, 0.6)
 # Honda Bosch-A: positive cruise accel is at most gain (1/s) * remaining speed gap + offset (m/s^2)
 CRUISE_APPROACH_GAIN = 0.5
 CRUISE_APPROACH_OFFSET = 0.1
+# Honda Bosch-A stop-and-go: accelerate gently toward a close lead instead of launching at the platform ceiling.
+# Positive accel is capped by lead distance and the cap lifts away as speed rises past ~25 mph.
+CLOSE_LEAD_CAP_DISTANCE_BP = (10.0, 25.0)
+CLOSE_LEAD_CAP_ACCEL = (0.8, 1.5)
+CLOSE_LEAD_CAP_SPEED_BP = (8.0, 11.0)
+CLOSE_LEAD_CAP_SPEED_RELEASE = (0.0, 2.0)
 CRUISE_OVERSPEED_BRAKING_BUFFER = 0.1
 CRUISE_OVERSPEED_DRIVING_BUFFER = 0.5
 ROEN_ACCEL_BP = (0.0, 5.0, 20.0)
@@ -93,6 +99,7 @@ class NrdrLongitudinalPlanner:
     self.launch_armed = False
     self.honda_bosch_a_radar = is_honda_bosch_a_radar(CP)
     self.last_cruise_target = None
+    self.last_lead_distance = None
     self._refresh_settings()
 
   def refresh(self) -> None:
@@ -130,15 +137,32 @@ class NrdrLongitudinalPlanner:
   def personality_accel_ceiling(self, v_ego: float, personality) -> float | None:
     """Return the C3 positive cruise/ACC ceiling without changing platform, coast, or braking limits."""
     ceiling = c3_personality_accel_max(v_ego, personality)
-    target = getattr(self, "last_cruise_target", None)
-    if not getattr(self, "honda_bosch_a_radar", False) or target is None:
+    if not getattr(self, "honda_bosch_a_radar", False):
       return ceiling
+    caps = [] if ceiling is None else [ceiling]
+
     # Ease into the set speed like a driver lifting off the pedal, instead of holding the ceiling until the last mph
-    gap = target - float(v_ego)
-    if not np.isfinite(gap) or gap <= 0.0:
-      return ceiling
-    approach = CRUISE_APPROACH_GAIN * gap + CRUISE_APPROACH_OFFSET
-    return approach if ceiling is None else min(ceiling, approach)
+    target = getattr(self, "last_cruise_target", None)
+    if target is not None:
+      gap = target - float(v_ego)
+      if np.isfinite(gap) and gap > 0.0:
+        caps.append(CRUISE_APPROACH_GAIN * gap + CRUISE_APPROACH_OFFSET)
+
+    distance = getattr(self, "last_lead_distance", None)
+    if distance is not None:
+      close_lead_cap = (np.interp(distance, CLOSE_LEAD_CAP_DISTANCE_BP, CLOSE_LEAD_CAP_ACCEL) +
+                        np.interp(float(v_ego), CLOSE_LEAD_CAP_SPEED_BP, CLOSE_LEAD_CAP_SPEED_RELEASE))
+      caps.append(float(close_lead_cap))
+
+    return min(caps) if caps else None
+
+  def remember_lead(self, sm) -> None:
+    try:
+      lead = sm["radarState"].leadOne
+      distance = float(lead.dRel)
+      self.last_lead_distance = distance if lead.present and np.isfinite(distance) else None
+    except (AttributeError, KeyError, TypeError, ValueError):
+      self.last_lead_distance = None
 
   def turn_accel_threshold(self) -> float:
     return ROEN_TURN_ACCEL_THRESHOLD if self.roen_enabled else 0.0
@@ -154,6 +178,7 @@ class NrdrLongitudinalPlanner:
 
   def launch_accel(self, sm, mpc_time_indices, action_time: float, v_ego: float,
                    should_stop: bool, output_accel: float, e2e_active: bool) -> float:
+    self.remember_lead(sm)
     if sm["carState"].standstill:
       self.launch_armed = True
     elif v_ego > LAUNCH_DISARM_SPEED:

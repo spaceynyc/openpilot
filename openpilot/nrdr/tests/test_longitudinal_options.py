@@ -680,3 +680,38 @@ def test_bosch_a_cruise_ceiling_untouched_at_or_above_set_speed_and_on_other_car
   assert planner.personality_accel_ceiling(22.0, personality) == c3_personality_accel_max(22.0, personality)
   other = _bosch_a_planner(20.0, bosch_a=False)
   assert other.personality_accel_ceiling(19.0, personality) == c3_personality_accel_max(19.0, personality)
+
+
+def _radar_sm(present: bool, distance: float = 0.0):
+  return {"radarState": SimpleNamespace(leadOne=SimpleNamespace(present=present, dRel=distance))}
+
+
+def test_bosch_a_close_lead_caps_stop_and_go_acceleration():
+  aggressive = log.LongitudinalPersonality.aggressive
+  planner = _bosch_a_planner(20.0)
+  planner.remember_lead(_radar_sm(True, 10.0))
+  assert planner.personality_accel_ceiling(3.0, aggressive) == pytest.approx(0.8)
+  planner.remember_lead(_radar_sm(True, 25.0))
+  assert planner.personality_accel_ceiling(3.0, aggressive) == pytest.approx(1.5)
+  standard = log.LongitudinalPersonality.standard
+  planner.remember_lead(_radar_sm(True, 5.0))
+  assert planner.personality_accel_ceiling(3.0, standard) == pytest.approx(0.8)
+
+
+def test_bosch_a_close_lead_cap_releases_with_speed_and_without_lead():
+  aggressive = log.LongitudinalPersonality.aggressive
+  planner = _bosch_a_planner(20.0)
+  planner.remember_lead(_radar_sm(True, 10.0))
+  # above ~25 mph the close-lead cap sits above the platform ceiling, so it no longer limits anything
+  assert planner.personality_accel_ceiling(12.0, aggressive) > planner.max_accel(12.0)
+  planner.remember_lead(_radar_sm(False))
+  assert planner.personality_accel_ceiling(3.0, aggressive) == pytest.approx(8.6)
+  planner.remember_lead({})
+  assert planner.last_lead_distance is None
+
+
+def test_close_lead_cap_is_bosch_a_only():
+  personality = log.LongitudinalPersonality.relaxed
+  other = _bosch_a_planner(20.0, bosch_a=False)
+  other.remember_lead(_radar_sm(True, 5.0))
+  assert other.personality_accel_ceiling(3.0, personality) == c3_personality_accel_max(3.0, personality)
