@@ -5,6 +5,7 @@ from opendbc.sunnypilot.car.honda.values_ext import HondaFlagsSP
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.nrdr.features.lateral.integral_pid import IntegralScaledPIDController
 from openpilot.common.realtime import DT_CTRL
+from openpilot.nrdr.features.lateral.crawl_steering import CrawlTarget, crawl_authority
 from openpilot.nrdr.features.lateral.honda_vgr import normalize_honda_eps_firmware
 from openpilot.nrdr.features.lateral.live_tuning import LIVE_TUNING_TRANSITION_SECONDS
 from openpilot.nrdr.features.lateral.interpolated_torque_pif import (
@@ -155,6 +156,7 @@ class NrdrLatControlPID(LatControl):
     self.starpilot = False
     self.stiction_enabled = False
     self.stiction = LatStiction(dt, self.steer_max)
+    self.crawl_target = CrawlTarget(dt)
     self.tune_learner = TuneLearner(dt, self.steer_max, self.params)
     self.interpolated_torque_pif_supported = supports_interpolated_torque_pif(CP, CP_SP)
     self.interpolated_torque_pif_latch = InterpolatedTorquePifSettingsLatch(
@@ -216,6 +218,7 @@ class NrdrLatControlPID(LatControl):
     self.previous_desired_angle = desired_angle
     self.previous_saturated = False
     self.stiction.reset()
+    self.crawl_target.reset()
     self.classic_torque_candidate.reset()
     self.last_classic_torque_result = None
 
@@ -348,6 +351,9 @@ class NrdrLatControlPID(LatControl):
     pid_log.steeringAngleDeg = float(CS.steeringAngleDeg)
     pid_log.steeringRateDeg = float(CS.steeringRateDeg)
     desired_no_offset, desired_angle = self._desired_angles(VM, CS, params, desired_curvature)
+    if self.is_eps_modified and active:
+      desired_no_offset = self.crawl_target.update(desired_no_offset, CS.vEgo)
+      desired_angle = desired_no_offset + params.angleOffsetDeg
     error = desired_angle - CS.steeringAngleDeg
     pid_log.steeringAngleDesiredDeg = desired_angle
     pid_log.angleError = error
@@ -422,6 +428,8 @@ class NrdrLatControlPID(LatControl):
         ),
         self.steer_max,
       )
+      if self.is_eps_modified:
+        output_torque *= crawl_authority(CS.vEgo)
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
