@@ -35,6 +35,7 @@ STATE_KEYS = ('DongleId', 'PrimeType', 'PairingProvider', 'PairingEmail', 'Athen
               'ApiCache_Device', 'ApiCache_FirehoseStats')
 TRANSIENT_KEYS = ('AccessToken', 'LastAthenaPingTime')
 MAX_STATE_BYTES = 8 * 1024 * 1024
+DEFAULT_PROVIDER = 'konik'
 ROUTE_MARKER = '.cloud-provider'
 OFFLINE = Provider('offline', 'Cloud Unavailable', '', '', '', 'user.upload.disabled')
 
@@ -179,8 +180,14 @@ def activate_at_boot(params, *, root=None, boot=boot_id):
   """Called before managed services start; never changes provider in a live session."""
   root = root or root_path()
   if not (root / 'provider.json').exists() and not (root / 'switch.json').exists():
-    params.put('ConnectProvider', 'comma', block=True)
-    return
+    if DEFAULT_PROVIDER == 'comma':
+      params.put('ConnectProvider', 'comma', block=True)
+      return
+    # First boot: run the ordinary switch away from comma so an existing comma
+    # registration is saved for switching back instead of being sent to the default.
+    with _exclusive(root):
+      if not (root / 'provider.json').exists():
+        _write(root / 'provider.json', {'active': 'comma', 'selected': DEFAULT_PROVIDER, 'requestedBoot': ''})
   with _exclusive(root):
     value = configuration(root)
     journal = _read(root / 'switch.json')

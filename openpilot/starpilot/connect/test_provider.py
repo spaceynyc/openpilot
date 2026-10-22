@@ -111,10 +111,28 @@ def test_malformed_journal_does_not_partially_restore(environment):
 def test_default_boot_never_discards_existing_registration(environment):
   root, params = environment
   params.put('DongleId', '0123456789abcdef')
-  p.activate_at_boot(params, root=root)
-  assert params.get('DongleId') == '0123456789abcdef'
+  p.activate_at_boot(params, root=root, boot=lambda: 'first')
+  assert params.get('ConnectProvider') == 'konik'
+  assert params.get('DongleId') is None
+  assert p.configuration(root) == {'active': 'konik', 'selected': 'konik', 'requestedBoot': ''}
+  with patch.object(p, 'root_path', return_value=root):
+    assert p.recording_device_id('comma', params) == '0123456789abcdef'
+  p.activate_at_boot(params, root=root, boot=lambda: 'second')
+  assert params.get('ConnectProvider') == 'konik'
+  choose(root, 'comma', 'second')
+  p.activate_at_boot(params, root=root, boot=lambda: 'third')
   assert params.get('ConnectProvider') == 'comma'
-  assert not root.exists()
+  assert params.get('DongleId') == '0123456789abcdef'
+
+
+def test_fresh_device_defaults_to_konik(environment):
+  root, params = environment
+  p.activate_at_boot(params, root=root, boot=lambda: 'first')
+  assert params.get('ConnectProvider') == 'konik'
+  assert params.get('DongleId') is None
+  assert not (root / 'switch.json').exists()
+  with patch.object(p, 'root_path', return_value=root):
+    assert p.active_provider() == p.PROVIDERS['konik']
 
 
 def test_corrupt_provider_goes_offline_without_selecting_other_account(environment):
