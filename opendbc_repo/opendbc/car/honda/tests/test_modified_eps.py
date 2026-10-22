@@ -171,6 +171,16 @@ def test_stock_lookup_and_tunes_do_not_acquire_modified_marker(candidate):
   assert lookup.STEER_LOOKUP_V == lookup.STEER_LOOKUP
 
 
+def test_modified_insight_ignores_logging_only_eps_response():
+  # A real 2019 Insight: the EPS also answers a logging-only query with its serial/part string.
+  logging_only = structs.CarParams.CarFw(ecu=Ecu.eps, address=0x18DA30F1, subAddress=0,
+                                         fwVersion=b'\x0c BK7M230506D                  ', brand='honda', logging=True)
+  cp = params(CAR.HONDA_INSIGHT, [logging_only, eps(b'39990-TXM,A040\x00\x00')])
+  assert cp.flags & HondaFlags.EPS_MODIFIED
+  assert not cp.dashcamOnly
+  assert list(cp.lateralTuning.pid.kpV) == pytest.approx([0.03])
+
+
 def test_stock_insight_keeps_stock_tune():
   cp = params(CAR.HONDA_INSIGHT, [eps(b'39990-TXM-A040\x00\x00')])
   assert not cp.flags & HondaFlags.EPS_MODIFIED

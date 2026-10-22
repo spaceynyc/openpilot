@@ -98,7 +98,9 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kiBP = [0., 5., 35.]
       ret.longitudinalTuning.kiV = [1.2, 0.8, 0.5]
 
-    eps_observations = [fw for fw in car_fw if fw.ecu == "eps"]
+    # Logging-only queries (e.g. the EPS serial/part response) are not firmware versions; only the
+    # fingerprinting responses decide whether a modified EPS is recognized.
+    eps_observations = [fw for fw in car_fw if fw.ecu == "eps" and not fw.logging]
     modified_eps = any(b"," in fw.fwVersion for fw in eps_observations)
     eps_modified = bool(modified_eps) and all(
       fw.address == 0x18DA30F1 and fw.subAddress == 0 and
