@@ -71,6 +71,15 @@ SOURCE_BASELINES = {
     (Ecu.fwdCamera, 416986609, None): b'36161-TLA-A060\x00\x00',
     (Ecu.srs, 416961521, None): b'77959-TLA-A240\x00\x00',
   },
+  CAR.HONDA_INSIGHT: {
+    (Ecu.eps, 0x18da30f1, None): b'39990-TXM,A040\x00\x00',
+    (Ecu.fwdRadar, 0x18dab0f1, None): b'36802-TXM-A070\x00\x00',
+    (Ecu.fwdCamera, 0x18dab5f1, None): b'36161-TXM-A050\x00\x00',
+    (Ecu.srs, 0x18da53f1, None): b'77959-TXM-A230\x00\x00',
+    (Ecu.vsa, 0x18da28f1, None): b'57114-TXM-A030\x00\x00',
+    (Ecu.shiftByWire, 0x18da0bf1, None): b'54008-TWA-A910\x00\x00',
+    (Ecu.gateway, 0x18daeff1, None): b'38897-TXM-A020\x00\x00',
+  },
 }
 
 KNOWN_CASES = (
@@ -80,6 +89,7 @@ KNOWN_CASES = (
   (CAR.HONDA_CIVIC_BOSCH, b'39990-TGG,A020\x00\x00'),
   (CAR.HONDA_CIVIC_BOSCH, b'39990-TGG,A120\x00\x00'),
   (CAR.HONDA_CRV_5G, b'39990-TLA,A040\x00\x00'),
+  (CAR.HONDA_INSIGHT, b'39990-TXM,A040\x00\x00'),
 )
 
 
@@ -119,9 +129,12 @@ def test_exact_modified_eps_full_cohort_joint_matcher_and_final_cp(candidate, ve
     CAR.HONDA_ACCORD: (0.3, 0.09),
     CAR.HONDA_CIVIC_BOSCH: (0.8, 0.24),
     CAR.HONDA_CRV_5G: (0.21, 0.07),
+    CAR.HONDA_INSIGHT: (0.03, 0.01),
   }[candidate]
   assert list(cp.lateralTuning.pid.kpV) == pytest.approx([expected[0]])
   assert list(cp.lateralTuning.pid.kiV) == pytest.approx([expected[1]])
+  if candidate == CAR.HONDA_INSIGHT:
+    assert cp.lateralTuning.pid.kf == pytest.approx(0.000012)
   lookup = CarControllerParams(cp)
   if candidate == CAR.HONDA_CIVIC:
     assert lookup.STEER_MAX == 8000
@@ -156,6 +169,16 @@ def test_stock_lookup_and_tunes_do_not_acquire_modified_marker(candidate):
   assert not cp.flags & HondaFlags.EPS_MODIFIED
   lookup = CarControllerParams(cp)
   assert lookup.STEER_LOOKUP_V == lookup.STEER_LOOKUP
+
+
+def test_stock_insight_keeps_stock_tune():
+  cp = params(CAR.HONDA_INSIGHT, [eps(b'39990-TXM-A040\x00\x00')])
+  assert not cp.flags & HondaFlags.EPS_MODIFIED
+  assert not cp.dashcamOnly
+  assert list(cp.lateralTuning.pid.kpV) == pytest.approx([0.6])
+  assert list(cp.lateralTuning.pid.kiV) == pytest.approx([0.18])
+  assert cp.lateralTuning.pid.kf == pytest.approx(0.00006)
+  assert CarControllerParams(cp).STEER_MAX == 4096
 
 
 def test_recognized_modified_eps_inventory_is_exact_original_subset():

@@ -917,6 +917,7 @@ FW_VERSIONS = {
   CAR.HONDA_INSIGHT: {
     (Ecu.eps, 0x18da30f1, None): [
       b'39990-TXM-A040\x00\x00',
+      b'39990-TXM,A040\x00\x00',
     ],
     (Ecu.fwdRadar, 0x18dab0f1, None): [
       b'36802-TXM-A070\x00\x00',

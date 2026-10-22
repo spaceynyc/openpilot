@@ -143,6 +143,7 @@ def test_final_cp_publication_and_disabled_startup(identity, monkeypatch):
   (CAR.HONDA_CIVIC_BOSCH, b"39990-TGG,A020\x00\x00"),
   (CAR.HONDA_CIVIC_BOSCH, b"39990-TGG,A120\x00\x00"),
   (CAR.HONDA_CRV_5G, b"39990-TLA,A040\x00\x00"),
+  (CAR.HONDA_INSIGHT, b"39990-TXM,A040\x00\x00"),
 ))
 def test_known_modified_eps_final_cp_publication_and_disabled_startup(identity, version, monkeypatch):
   firmware = (structs.CarParams.CarFw(ecu=structs.CarParams.Ecu.eps, address=0x18DA30F1,

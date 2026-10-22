@@ -193,6 +193,11 @@ class CarInterface(CarInterfaceBase):
     elif candidate == CAR.HONDA_RIDGELINE:
       ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.38], [0.11]]
 
+    elif candidate == CAR.HONDA_INSIGHT and eps_modified:
+      # nrdr Proper Torque Mod (PTM) EPS firmware: near-linear torque map, roughly 5x stock output
+      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.03], [0.01]]
+      ret.lateralTuning.pid.kf = 0.000012
+
     elif candidate in (CAR.HONDA_INSIGHT, CAR.HONDA_NBOX_2G):
       ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.6], [0.18]]
 
