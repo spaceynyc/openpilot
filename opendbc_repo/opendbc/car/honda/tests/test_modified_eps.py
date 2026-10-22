@@ -193,3 +193,16 @@ def test_stock_insight_keeps_stock_tune():
 
 def test_recognized_modified_eps_inventory_is_exact_original_subset():
   assert set(KNOWN_CASES) == {(car, version) for car, versions in MODIFIED_EPS_FW.items() for version in versions}
+
+
+@pytest.mark.parametrize("angle,expected", [(0.0, 1000), (3.0, 1000), (-2.5, 1000), (3.1, 1400), (-45.0, 1400)])
+def test_flashed_insight_uses_nrdr_override_thresholds(angle, expected):
+  from opendbc.car.honda.values import steer_threshold
+  cp = params(CAR.HONDA_INSIGHT, [eps(b'39990-TXM,A040\x00\x00')])
+  assert steer_threshold(cp, angle) == expected
+
+
+def test_stock_insight_keeps_the_stock_override_threshold():
+  from opendbc.car.honda.values import steer_threshold
+  cp = params(CAR.HONDA_INSIGHT, [eps(b'39990-TXM-A040\x00\x00')])
+  assert steer_threshold(cp, 0.0) == steer_threshold(cp, 30.0) == 1200

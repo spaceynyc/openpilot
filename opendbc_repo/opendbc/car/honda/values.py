@@ -506,6 +506,22 @@ MANUAL_TRANS_CARS = frozenset((CAR.HONDA_ACCORD, CAR.HONDA_CIVIC_2022))
 DBC = CAR.create_dbc_map()
 
 
+# nrdr's Proper Torque Mod (PTM) firmware on the Insight: a raised driver-override threshold, so EPS stutter
+# on the flashed rack does not read as the driver taking the wheel, and a lower one near center so the driver
+# still overrides easily there. Raw STEER_TORQUE_SENSOR units, the same scale as the stock 1200.
+MODIFIED_EPS_STEER_THRESHOLD = {
+  CAR.HONDA_INSIGHT: (1400, 1000, 3.0),  # (threshold, threshold within +/- center_deg, center_deg)
+}
+
+
+def steer_threshold(CP, steering_angle_deg: float) -> float:
+  """The driver-override torque threshold for this car at this wheel angle."""
+  if CP.flags & HondaFlags.EPS_MODIFIED and CP.carFingerprint in MODIFIED_EPS_STEER_THRESHOLD:
+    threshold, center_threshold, center_deg = MODIFIED_EPS_STEER_THRESHOLD[CP.carFingerprint]
+    return center_threshold if abs(steering_angle_deg) <= center_deg else threshold
+  return STEER_THRESHOLD.get(CP.carFingerprint, 1200)
+
+
 STEER_THRESHOLD = {
   # default is 1200, overrides go here
   CAR.ACURA_RDX: 400,

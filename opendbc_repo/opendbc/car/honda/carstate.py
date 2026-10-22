@@ -6,7 +6,7 @@ from opendbc.can import CANDefine, CANParser
 from opendbc.car import Bus, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.honda.hondacan import CanBus
-from opendbc.car.honda.values import CAR, DBC, STEER_THRESHOLD, HondaFlags, CruiseButtons, CruiseSettings, \
+from opendbc.car.honda.values import CAR, DBC, steer_threshold, HondaFlags, CruiseButtons, CruiseSettings, \
                                                  GearShifter, CarControllerParams
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.dashboard_speed_limit import Tracker as LimitTracker, honda_sign, parser_expiry
@@ -171,7 +171,7 @@ class CarState(CarStateBase):
       ret.gasPressed = cp.vl["POWERTRAIN_DATA"]["PEDAL_GAS"] > 1e-5
 
     ret.steeringTorque = cp.vl["STEER_STATUS"]["STEER_TORQUE_SENSOR"]
-    ret.steeringPressed = abs(ret.steeringTorque) > STEER_THRESHOLD.get(self.CP.carFingerprint, 1200)
+    ret.steeringPressed = abs(ret.steeringTorque) > steer_threshold(self.CP, ret.steeringAngleDeg)
 
     if self.CP.flags & HondaFlags.BOSCH:
       # The PCM always manages its own cruise control state, but doesn't publish it
