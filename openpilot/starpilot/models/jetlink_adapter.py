@@ -5,6 +5,7 @@ gadget owner (jetlinkd) runs it.
 """
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import time
@@ -44,6 +45,24 @@ def aol_in_control(intent, alive, axes, waiting=False) -> bool:
     if decoded is None or decoded.allowedLatch or decoded.lateralArmed:
       return True
   return any(axes)
+
+
+@contextlib.contextmanager
+def unguarded_compile():
+  """tinygrad's own host compiler for the duration, then the model-runtime guard back.
+
+  The runtime bridge replaces hcq2.lower_and_compile for the whole process when the driving model loads, and
+  refuses any fresh QCOM compilation, for Chestnut's weight loading. Jetlink's small-model reset compiles one
+  zeroing kernel for the comma's own queues once, then replays it, so it never gets past that guard. Jetlink
+  does not run alongside Chestnut, so the reset's one compile may use the unguarded compiler."""
+  from tinygrad.engine.realize import lower_and_compile
+  from tinygrad.runtime.support import hcq2
+  guarded = hcq2.lower_and_compile
+  hcq2.lower_and_compile = lower_and_compile
+  try:
+    yield
+  finally:
+    hcq2.lower_and_compile = guarded
 
 
 @functools.cache
@@ -88,7 +107,9 @@ def _adapter_class():
         return None
       from jetlink.openpilot.warp import reset_queues
       queues = [q for name, q in small.input_queues.items() if q.device != "NPY" and name not in FRAME_INPUTS]
-      return reset_queues(queues, small.npy.values(), small.prev_desire)
+      # the reset compiles its zeroing kernel here, once; the runtime guard refuses fresh QCOM compiles
+      with unguarded_compile():
+        return reset_queues(queues, small.npy.values(), small.prev_desire)
 
   return StarPilotAdapter
 

@@ -89,6 +89,40 @@ def test_one_action_call_for_every_small_model():
   assert modeld.ModelState.get_action_from_model is modeld.get_action_from_model
 
 
+def test_unguarded_compile_restores_the_runtime_guard():
+  from tinygrad.engine.realize import lower_and_compile
+  from tinygrad.runtime.support import hcq2
+  def guard(linear):
+    raise ValueError('Unexpected fresh QCOM submission in Chestnut weight loading')
+  with patch.object(hcq2, 'lower_and_compile', guard):
+    with adapter.unguarded_compile():
+      assert hcq2.lower_and_compile is lower_and_compile
+    assert hcq2.lower_and_compile is guard
+    with pytest.raises(RuntimeError), adapter.unguarded_compile():
+      raise RuntimeError('reset failed')
+    assert hcq2.lower_and_compile is guard
+
+
+def test_the_small_reset_compiles_past_the_runtime_guard(monkeypatch):
+  from tinygrad.engine.realize import lower_and_compile
+  from tinygrad.runtime.support import hcq2
+  from jetlink.openpilot import warp
+  from openpilot.starpilot.models.runner import CatalogModelState
+  seen = []
+  def fake_reset(queues, arrays, prev_desire=None):
+    seen.append(hcq2.lower_and_compile is lower_and_compile)
+    return 'reset'
+  def guard(linear):
+    raise ValueError('Unexpected fresh QCOM submission in Chestnut weight loading')
+  monkeypatch.setattr(warp, 'reset_queues', fake_reset)
+  small = CatalogModelState.__new__(CatalogModelState)
+  small.input_queues, small.npy, small.prev_desire = {}, {}, np.zeros(8)
+  with patch.object(hcq2, 'lower_and_compile', guard):
+    assert adapter.adapter().small_reset(small) == 'reset'
+    assert hcq2.lower_and_compile is guard
+  assert seen == [True]
+
+
 def test_small_reset_only_for_the_catalog_runner():
   assert adapter.adapter().small_reset(SimpleNamespace(input_queues={}, npy={}, prev_desire=np.zeros(8))) is None
 
