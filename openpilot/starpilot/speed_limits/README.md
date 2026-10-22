@@ -1,0 +1,93 @@
+# Speed Limit Controller
+
+SLC uses the ordinary cruise set speed as its only vehicle-speed target. A qualified
+limit from the selected Dashboard, Maps, or Vision source is an input to adoption.
+Acceptance applies the configured offset within the existing 8–145 km/h cruise
+bounds and sends a qualified command to card,
+which owns `vCruise` and `vCruiseCluster`. SLC supplies no separate planner ceiling.
+Lead, curve, stop and actuator safety constraints retain their existing owners.
+
+## New limits and adoption
+
+A different numeric limit from the selected source starts a new decision, including
+while a set-speed override is active. A source/road identity change at the same
+numeric limit does not start another decision. A decline remains effective across
+a source gap or same-value provider change; a later different limit starts a new
+window, including when an earlier numeric limit returns.
+
+With Automatic adoption on, the widget slowly flashes for three seconds before
+adoption. With it off, the stationary widget pulses purple twice slowly (700 ms
+each), rests for one second, pulses twice quickly (300 ms each), and rests for one
+second before repeating. Each pair has a 200 ms gap. The arrow remains relative
+to vehicle speed; Vienna numerals stay black while their ring pulses.
+Large UI uses the same US or Vienna sign at 1.25× scale beside SET speed.
+Steering-wheel + accepts and − declines. Tapping the sign opens the same
+Accept / Decline choices on either native screen. A pending manual choice expires
+after ten monotonic seconds, including time without active longitudinal control.
+Decline and timeout leave set speed unchanged. An action at the exact deadline
+can still complete its presented decision; a later action cannot accept it.
+
+The existing saved `SLCConfirmation` bit is retained: `0` means Automatic adoption
+on and `1` means off. Both native settings layouts show the inverse as Automatic
+adoption. Legacy directional confirmation and override preferences do not change
+this policy. No new saved preference or dependency is needed.
+
+Only a finite positive source observation can propose a limit. Missing, stale and
+unknown observations stay distinct. Source loss clears a pending choice; it cannot
+change set speed. While the publisher remains fresh, the widget retains the latest
+received limit and offset with an unavailable status, independently of accepted
+history and the previous-limit fallback preference. Offset-only edits preserve accepted and
+rejected state and renew action identities. A changed offset can update the set
+speed of the accepted current limit; source loss defers this command until that
+limit is qualified again.
+
+## Set speed and accelerator
+
+A qualified manual change to a different set speed marks an override, for increases
+and decreases. An X crosses the sign while override is active. Returning to the
+applied set speed clears it, using card's receipt to account for whole-unit rounding. Adopting
+a new limit also clears it. Adoption retains the ordinary buttons' 0.1 km/h internal
+precision, including for mph targets. New-limit decisions continue during override.
+
+The accelerator temporarily allows higher vehicle speed without changing set speed
+or creating an SLC override. Adoption and confirmation can update software set
+speed while accelerator override temporarily suspends actuator output. On release the ordinary planner approaches set speed
+using the currently selected braking profile. Existing lead and stopping constraints
+continue to apply.
+
+With SLC enabled and system longitudinal control available, card owns software set
+speed even on PCM vehicles; PCM still owns engagement. Native PCM setpoint changes
+cannot overwrite an adopted software set speed. When SLC is off, the original PCM
+set-speed path is restored. Stock longitudinal control never gains SLC commands.
+
+## Source and command qualification
+
+Source selection, registered vehicle capabilities, strict saved-setting decoding,
+Dashboard parser freshness, Maps road qualification, and Vision clock/inference
+checks remain in their source adapters. Vision still requires its separate display
+and control qualification. Online providers are not connected as live control
+sources. See [selection](SELECTION.md), [Maps](MAP_SOURCE.md), and the pinned camera
+[model provenance](vision/assets/PROVENANCE.md).
+
+Every action binds the current session, decision and presentation. The causal ledger
+keeps consumed confirmation presses out of the ordinary cruise-button path, through
+held repeats and release. Card checks active system-longitudinal authority, command
+and state age, matching presentation and source, expected current set speed, legal
+speed bounds, and intervening buttons before applying a command once. Dashboard
+commands also match the local OEM episode. Maps and Vision commands bind the fresh
+qualified planner presentation. A command receipt distinguishes application from
+limit acceptance. Rejected or expired commands may retry with current evidence
+while the accepted limit and expected set speed remain current, with no pending
+decision or manual override. Applied commands are not repeated.
+Declining or timing out a returned limit never revives an earlier adoption command;
+the historical adoption remains recorded independently of the new rejection.
+
+Transport changes append to reserved custom messages. `SlcState` appends automatic
+countdown metadata at ordinals 51–52 and latest-received display metadata at 53–55.
+`SlcCruiseCommand` appends its source at 14 and
+a bidirectional adoption kind; historical fields and enum ordinals remain reserved.
+Official vehicle schemas are unchanged. Historical SLC ceiling fields stay empty.
+
+Host tests cover decisions, source validation, commands, cruise buttons, profile
+selection and both UI layouts. Synthetic captures and host tests do not establish
+camera accuracy, device timing under load, or onroad behavior.
