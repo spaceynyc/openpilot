@@ -56,14 +56,12 @@ class CarState(CarStateBase):
     self.v_cruise_factor = 1.
 
     # Deferred radar disable (see deferred_radar_disable): the stock radar is assumed alive until it has been
-    # silent for a few frames, and the relay is detected open once the camera's STEERING_CONTROL, which the live
-    # radar forwards onto the PT bus, stops being visible there.
+    # silent for a few frames, and the panda is known to be passing our TX once our own messages echo as sent.
+    # The camera's STEERING_CONTROL is no relay signal here: with the relay open the panda still forwards it to
+    # the radar, which relays it onto the PT bus until it is disabled.
     self.stock_acc_counter = 0
     self.stock_acc_alive = deferred_radar_disable(CP)
-    self.camera_steer_counter = 0
-    self.camera_steer_seen = False
-    self.relay_frames = 0
-    self.relay_open = False
+    self.tx_live = False
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -260,15 +258,9 @@ class CarState(CarStateBase):
       self.stock_acc_counter = 0 if len(cp.vl_all["ACC_CONTROL"]["COUNTER"]) else self.stock_acc_counter + 1
       self.stock_acc_alive = self.stock_acc_counter < 4
 
-      # openpilot's own STEERING_CONTROL is a TX echo and is not parsed. Fall back to an open relay after 5 s
-      # in case the camera was never seen.
-      self.relay_frames += 1
-      if len(cp.vl_all["STEERING_CONTROL"]["COUNTER"]):
-        self.camera_steer_counter = 0
-        self.camera_steer_seen = True
-      else:
-        self.camera_steer_counter += 1
-      self.relay_open = (self.camera_steer_seen and self.camera_steer_counter >= 5) or self.relay_frames >= 500
+      # Our LKAS_HUD comes back as a sent echo only once the panda is in the Honda safety mode with the relay open;
+      # under ELM327/noOutput it is echoed as blocked. Latched: nothing re-closes the relay within a drive.
+      self.tx_live = self.tx_live or len(can_parsers[Bus.loopback].vl_all["LKAS_HUD"]["COUNTER"]) > 0
 
     return ret
 
@@ -280,8 +272,8 @@ class CarState(CarStateBase):
     if CP.flags & HondaFlags.GAS_INTERCEPTOR:
       pt_messages.append(("GAS_SENSOR", 50))
     if deferred_radar_disable(CP):
-      # both go silent by design (radar disabled, camera behind the open relay): NaN skips the alive checks
-      pt_messages += [("ACC_CONTROL", math.nan), ("STEERING_CONTROL", math.nan)]
+      # goes silent by design once the radar is disabled: NaN skips the alive checks
+      pt_messages.append(("ACC_CONTROL", math.nan))
     parsers = {
       Bus.pt: CANParser(dbc_name, pt_messages, CanBus(CP).pt),
       Bus.cam: CANParser(dbc_name, [("CAMERA_MESSAGES", math.nan)] if has_tsr and not on_pt else [], CanBus(CP).camera),
@@ -291,5 +283,9 @@ class CarState(CarStateBase):
       parsers[Bus.pt].message_states[0x201].ignore_counter = True
     if CP.flags & HondaFlags.HAS_BSM:
       parsers[Bus.body] = CANParser(DBC[CP.carFingerprint][Bus.body], [], CanBus(CP).radar)
+    if deferred_radar_disable(CP):
+      # sent (not blocked) echoes of our own PT bus TX, see tx_live
+      parsers[Bus.loopback] = CANParser(dbc_name, [("LKAS_HUD", math.nan)], CanBus(CP).pt + 128)
+      parsers[Bus.loopback].message_states[0x33D].ignore_counter = True
 
     return parsers

@@ -170,11 +170,12 @@ class CarController(CarControllerBase):
     # Send CAN commands
     can_sends = []
 
-    # Deferred radar disable: silence the radar only once the relay is open, so it keeps feeding the VSA right up
-    # to the switchover and our ACC_CONTROL starts within a few frames of it going quiet (see CS.stock_acc_alive)
+    # Deferred radar disable: silence the radar only once the panda is passing our TX (see CS.tx_live), so it keeps
+    # feeding the VSA right up to the switchover and our ACC_CONTROL starts within a few frames of it going quiet
+    # (see CS.stock_acc_alive). Until then the live radar also relays the camera's steering onto the PT bus.
     radar_still_stock = deferred_radar_disable(self.CP) and CS.stock_acc_alive
     if radar_still_stock:
-      if CS.relay_open:
+      if CS.tx_live:
         if self.radar_disable_counter % 50 == 0:
           # UDS extended diagnostic session, required before CommunicationControl
           can_sends.append((0x18DAB0F1, b'\x02\x10\x03\x00\x00\x00\x00\x00', self.CAN.pt))
@@ -188,10 +189,11 @@ class CarController(CarControllerBase):
       if self.frame % 10 == 0:
         can_sends.append(make_tester_present_msg(0x18DAB0F1, 1, suppress_response=True))
 
-    # Send steering command.
-    can_sends.append(hondacan.create_steering_control(self.packer, self.CAN, apply_torque, CC.latActive, self.tja_control))
-    if _projection is not None:
-      _projection.emit('honda.STEERING_CONTROL', apply_torque, CC.latActive, can_sends[-1])
+    # Send steering command, unless the live radar is still relaying the camera's own onto the PT bus
+    if not radar_still_stock:
+      can_sends.append(hondacan.create_steering_control(self.packer, self.CAN, apply_torque, CC.latActive, self.tja_control))
+      if _projection is not None:
+        _projection.emit('honda.STEERING_CONTROL', apply_torque, CC.latActive, can_sends[-1])
 
     # wind brake from air resistance decel at high speed
     wind_brake = np.interp(CS.out.vEgo, [0.0, 2.3, 35.0], [0.001, 0.002, 0.15])
