@@ -37,6 +37,7 @@ from openpilot.selfdrive.modeld.helpers import chestnut_present, chestnut_compil
 
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
+from openpilot.sunnypilot.modeld_v2.camera_offset_helper import CameraOffsetHelper
 from openpilot.sunnypilot.selfdrive.controls.lib.relc import RoadEdgeLaneChangeController
 
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
@@ -344,6 +345,9 @@ def main(demo=False):
   model_transform_main = np.zeros((3, 3), dtype=np.float32)
   model_transform_extra = np.zeros((3, 3), dtype=np.float32)
   extrinsics_calibration_seen = False
+  # CameraOffset (sunnypilot's model setting) for the stock runner too: + moves the model's center left, - right
+  camera_offset_helper = CameraOffsetHelper()
+  camera_offset_helper.set_offset(params.get("CameraOffset", return_default=True))
   buf_main, buf_extra = None, None
   meta_main = FrameMeta()
   meta_extra = FrameMeta()
@@ -404,6 +408,8 @@ def main(demo=False):
     if sm.updated["lateralDelay"]:
       model.lat_delay = get_lat_delay(params, sm["lateralDelay"].lateralDelay, CP.steerActuatorDelay)
     lat_delay = model.lat_delay + LAT_SMOOTH_SECONDS
+    if sm.frame % 60 == 0:
+      camera_offset_helper.set_offset(params.get("CameraOffset", return_default=True))
     if sm.updated["extrinsicsCalibration"] and sm.seen['narrowRoadCameraState'] and sm.seen['deviceState']:
       device_from_calib_euler = np.array(sm["extrinsicsCalibration"].rpyCalib, dtype=np.float32)
       dc = DEVICE_CAMERAS[(str(sm['deviceState'].deviceType), str(sm['narrowRoadCameraState'].sensor))]
@@ -412,6 +418,8 @@ def main(demo=False):
       has_wide_camera = use_extra_client or main_wide_camera
       extra_intrinsics = dc.wide_road.intrinsics if has_wide_camera else dc.narrow_road.intrinsics
       model_transform_extra = get_warp_matrix(device_from_calib_euler, extra_intrinsics, True).astype(np.float32)
+      model_transform_main, model_transform_extra = camera_offset_helper.update(model_transform_main, model_transform_extra, sm,
+                                                                                main_wide_camera)
       extrinsics_calibration_seen = True
 
     traffic_convention = np.zeros(2)
