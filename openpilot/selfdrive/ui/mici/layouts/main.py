@@ -17,6 +17,14 @@ if gui_app.sunnypilot_ui():
   from openpilot.nrdr.ui.onroad.mici_onroad import NrdrAugmentedRoadView as AugmentedRoadView
 
 ONROAD_DELAY = 2.5  # seconds
+# Speed above which the car counts as moving for the UI. carState.standstill alone flickers in Park on some cars
+# (the 2019 Insight's hybrid XMISSION_SPEED reads 0.01-0.05 km/h at rest), and each flicker popped the user back
+# to the camera mid-navigation.
+MOVING_SPEED = 0.1  # m/s
+
+
+def car_moving(CS) -> bool:
+  return not CS.standstill and CS.vEgo > MOVING_SPEED and str(CS.gearShifter) != "park"
 
 
 class MiciMainLayout(Scroller):
@@ -26,7 +34,7 @@ class MiciMainLayout(Scroller):
     self._pm = messaging.PubMaster(['bookmarkButton', 'userBookmark'])
 
     self._prev_onroad = False
-    self._prev_standstill = False
+    self._prev_moving = False
     self._onroad_time_delay: float | None = None
     self._setup = False
 
@@ -130,11 +138,11 @@ class MiciMainLayout(Scroller):
       gui_app.pop_widgets_to(self, lambda: self._scroll_to(self._onroad_layout))
       self._onroad_time_delay = None
 
-    # When car leaves standstill, pop nav stack and scroll to onroad
-    CS = ui_state.sm["carState"]
-    if ui_state.started and not CS.standstill and self._prev_standstill:
+    # When car starts moving, pop nav stack and scroll to onroad
+    moving = car_moving(ui_state.sm["carState"])
+    if ui_state.started and moving and not self._prev_moving:
       gui_app.pop_widgets_to(self, lambda: self._scroll_to(self._onroad_layout))
-    self._prev_standstill = CS.standstill
+    self._prev_moving = moving
 
   def _on_interactive_timeout(self):
     # Don't pop if onboarding
@@ -142,8 +150,8 @@ class MiciMainLayout(Scroller):
       return
 
     if ui_state.started:
-      # Don't pop if at standstill
-      if not ui_state.sm["carState"].standstill:
+      # Don't pop if stopped or parked
+      if car_moving(ui_state.sm["carState"]):
         gui_app.pop_widgets_to(self, lambda: self._scroll_to(self._onroad_layout))
     else:
       # Screen turns off on timeout offroad, so pop immediately without animation
