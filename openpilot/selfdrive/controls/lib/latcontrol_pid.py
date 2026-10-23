@@ -3,6 +3,7 @@ import math
 from openpilot.cereal import log
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
+from openpilot.starpilot.lateral import honda_crawl
 
 
 class LatControlPID(LatControl):
@@ -14,6 +15,7 @@ class LatControlPID(LatControl):
     self.ff_factor = CP.lateralTuning.pid.kf
     self.get_steer_feedforward = CI.get_steer_feedforward_function()
     self.automatic_pid_previous_setpoint = None
+    self.crawl_target = honda_crawl.CrawlTarget(dt) if honda_crawl.eligible(CP) else None
 
   def update(self, active, CS, VM, params, steer_limited_by_safety, desired_curvature, curvature_limited, lat_delay):
     pid_log = log.ControlsState.LateralPIDState.new_message()
@@ -21,6 +23,11 @@ class LatControlPID(LatControl):
     pid_log.steeringRateDeg = float(CS.steeringRateDeg)
 
     angle_steers_des_no_offset = math.degrees(VM.get_steer_from_curvature(-desired_curvature, CS.vEgo, params.roll))
+    if self.crawl_target is not None:
+      if active:
+        angle_steers_des_no_offset = self.crawl_target.update(angle_steers_des_no_offset, CS.vEgo)
+      else:
+        self.crawl_target.reset()
     angle_steers_des = angle_steers_des_no_offset + params.angleOffsetDeg
     error = angle_steers_des - CS.steeringAngleDeg
 
@@ -50,6 +57,8 @@ class LatControlPID(LatControl):
       output_torque = finish_frame(self, CS, desired_angle_deg=angle_steers_des_no_offset,
         actual_angle_deg=CS.steeringAngleDeg - params.angleOffsetDeg, baseline_output=output_torque,
         active=active, limited=steer_limited_by_safety or curvature_limited)
+      if self.crawl_target is not None:
+        output_torque *= honda_crawl.crawl_authority(CS.vEgo)
       pid_log.active = True
       pid_log.p = float(self.pid.p)
       pid_log.i = float(self.pid.i)
