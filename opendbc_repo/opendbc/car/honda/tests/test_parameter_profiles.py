@@ -107,6 +107,22 @@ def test_city_two_horizon_forecast_boundaries():
   assert reached_forecast(cp, [0] * 4, times, 0.5, False) is False
 
 
+def test_insight_stops_on_a_stopped_plan_and_keeps_the_fallback():
+  from openpilot.starpilot.longitudinal.vehicle_policy import forecast_should_stop as reached_forecast
+  cp = factory(CAR.HONDA_INSIGHT, True)
+  times = [0, 0.5, 1.5, 3]
+  # the logged creep: plan ~0.03 now and 0.00 a second later while the car still rolls at 0.3-0.5 m/s
+  assert forecast_should_stop(cp, [0.05, 0.03, 0.0, 0.0], times, 0.55) is True
+  assert reached_forecast(cp, [0.05, 0.03, 0.0, 0.0], times, 0.55, False) is True
+  # slow following or still braking toward the stop: the v_ego fallback decides
+  for speeds in ([0.5] * 4, [0.4, 0.2, 0.05, 0.0], [0.05, 0.05, 0.3, 0.6]):
+    assert forecast_should_stop(cp, speeds, times, 0.55) is None
+    for fallback in (False, True):
+      assert reached_forecast(cp, speeds, times, 0.55, fallback) is fallback
+  cp.openpilotLongitudinalControl = False
+  assert forecast_should_stop(cp, [0] * 4, times, 0.55) is None
+
+
 @pytest.mark.parametrize("candidate", [identity for identity, mapping in PROFILES.items() if mapping is not None])
 def test_reached_controller_emits_original_steering_map(candidate):
   from opendbc.car import structs

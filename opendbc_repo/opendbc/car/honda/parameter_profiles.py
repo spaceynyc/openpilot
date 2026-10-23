@@ -50,11 +50,20 @@ def stopping_decel_rate(cp):
   return 0.3 if longitudinal_eligible(cp) else None
 
 
+# The Insight's VSA holds a ~0.32 m/s crawl under light ACC braking until STANDSTILL is requested, just above the
+# 0.3 m/s v_ego stop fallback, so it crept 4-5 s toward a stopped lead while the plan was already at ~0. Enter
+# stopping once the plan is stopped, and otherwise keep the v_ego fallback.
+PLAN_STOPPED_SPEED = {"HONDA_INSIGHT": 0.1}
+
+
 def forecast_should_stop(cp, speeds, time_indices, action_t):
-  if cp.carFingerprint != "HONDA_CITY_7G" or not longitudinal_eligible(cp):
+  if cp.carFingerprint not in ("HONDA_CITY_7G", *PLAN_STOPPED_SPEED) or not longitudinal_eligible(cp):
     return None
   if len(speeds) != len(time_indices) or not len(speeds):
     return None
   target = np.interp(action_t, time_indices, speeds)
   future = np.interp(action_t + 1.0, time_indices, speeds)
+  if cp.carFingerprint in PLAN_STOPPED_SPEED:
+    limit = PLAN_STOPPED_SPEED[cp.carFingerprint]
+    return True if target < limit and future < limit else None
   return bool(target < 2.0 and future < 2.0)
