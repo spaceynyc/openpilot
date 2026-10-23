@@ -22,7 +22,10 @@ def _insight(params) -> bool:
   inspected = inspect_cache("CarParamsPersistent", params.get("CarParamsPersistent"))
   if inspected.status != "valid" or inspected.payload is None:
     return False
-  return messaging.log_from_bytes(inspected.payload, car.CarParams).carFingerprint == INSIGHT
+  cp = messaging.log_from_bytes(inspected.payload, car.CarParams)
+  # with openpilot longitudinal the radar is silenced, and dropping offroad without handing it back latches VSA
+  # faults (Brake System, Cruise Fault) until the next ignition cycle, so only stock ACC goes offroad in Park
+  return cp.carFingerprint == INSIGHT and not cp.openpilotLongitudinalControl
 
 
 class ParkOffroad:
