@@ -22,7 +22,7 @@ class FakeScrollPanel:
 def _layout(scroller=None) -> MiciMainLayout:
   layout = MiciMainLayout.__new__(MiciMainLayout)
   layout._prev_onroad = False
-  layout._prev_standstill = False
+  layout._prev_moving = False
   layout._onroad_time_delay = None
   layout._onboarding_window = object()
   layout._home_layout = SimpleNamespace(rect=SimpleNamespace(x=536.0))
@@ -32,11 +32,11 @@ def _layout(scroller=None) -> MiciMainLayout:
   return layout
 
 
-def _runtime(monkeypatch, *, started: bool, standstill: bool, now: list[float]):
+def _runtime(monkeypatch, *, started: bool, standstill: bool, now: list[float], v_ego: float = 0.0, gear: str = "drive"):
   state = SimpleNamespace(
     started=started,
     is_body=False,
-    sm={"carState": SimpleNamespace(standstill=standstill)},
+    sm={"carState": SimpleNamespace(standstill=standstill, vEgo=v_ego, gearShifter=gear)},
   )
   app = SimpleNamespace(
     widget_in_stack=Mock(return_value=False),
@@ -99,3 +99,28 @@ def test_rapid_onroad_then_offroad_cancels_delayed_onroad_transition(monkeypatch
 
   assert layout._scroller.scroll_to.call_args_list == [call(536, smooth=False)]
   app.pop_widgets_to.assert_not_called()
+
+
+def test_standstill_flicker_in_park_does_not_pop_back_to_the_camera(monkeypatch):
+  now = [30.0]
+  state, app = _runtime(monkeypatch, started=True, standstill=True, now=now, gear="park")
+  layout = _layout()
+  layout._prev_onroad = True  # already onroad, past the delayed transition
+  for i in range(50):
+    state.sm["carState"].standstill = i % 2 == 0  # the Insight's hybrid XMISSION_SPEED jitter
+    state.sm["carState"].vEgo = 0.0028 if i % 2 else 0.0
+    layout._handle_transitions()
+  app.pop_widgets_to.assert_not_called()
+
+
+def test_pulling_away_pops_back_to_the_camera_once(monkeypatch):
+  now = [40.0]
+  state, app = _runtime(monkeypatch, started=True, standstill=True, now=now)
+  layout = _layout()
+  layout._prev_onroad = True
+  layout._handle_transitions()
+  state.sm["carState"].standstill = False
+  for v in (0.05, 0.2, 1.0, 3.0):
+    state.sm["carState"].vEgo = v
+    layout._handle_transitions()
+  assert app.pop_widgets_to.call_count == 1
