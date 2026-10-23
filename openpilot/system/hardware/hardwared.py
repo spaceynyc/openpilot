@@ -30,6 +30,7 @@ from openpilot.system.hardware.fan_controller import FanController
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
 from openpilot.common.version import terms_version, training_version, get_build_metadata, terms_version_sp
 from openpilot.nrdr.features.services.hardware import apply_startup_policy, initialize_onboarding
+from openpilot.nrdr.features.services.park_offroad import ParkOffroad
 
 ThermalStatus = log.DeviceState.ThermalStatus
 NetworkType = log.DeviceState.NetworkType
@@ -444,6 +445,7 @@ def hardware_thread(end_event, hw_queue, telemetry_queue) -> None:
   build_metadata = get_build_metadata()
   last_slow_stage_log: dict[str, float] = {}
 
+  park_offroad = ParkOffroad(params)
   while not end_event.is_set():
     stage_started = time.monotonic()
     sm.update(PANDA_STATES_TIMEOUT)
@@ -472,6 +474,9 @@ def hardware_thread(end_event, hw_queue, telemetry_queue) -> None:
       if onroad_conditions["ignition"]:
         onroad_conditions["ignition"] = False
         cloudlog.error("panda timed out onroad")
+
+    # Offroad while parked (Insight); OffroadMode still forces offroad on its own
+    onroad_conditions["not_parked"] = not park_offroad.update()
 
     # Run at 2Hz, plus either edge of ignition
     ign_edge = (started_ts is not None) != all(onroad_conditions.values())
