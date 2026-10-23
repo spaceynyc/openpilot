@@ -44,6 +44,7 @@ def test_forced_modes_poll_at_nominal_cadence_without_repeated_edges_and_observe
       'DT_HW': 0.5,
       'SERVICE_LIST': {'pandaStates': NS(frequency=10)},
       'effective_onroad': effective_onroad,
+      'park_offroad': NS(update=lambda: False),
     }
     for frame in range(1, 101):
       values.update(sm=NS(frame=frame, updated={'pandaStates': True}), pandaStates=[object()], onroad_conditions={'ignition': False, 'not_onroad_cycle': True})
@@ -253,6 +254,7 @@ def test_forced_onroad_startup_blocked_uses_nominal_hardware_cadence_and_keeps_e
     'physical_ignition_prev': None, 'requested_onroad_prev': None,
     'started_ts': None, 'DT_HW': 0.5,
     'SERVICE_LIST': {'pandaStates': NS(frequency=10)}, 'effective_onroad': effective_onroad,
+    'park_offroad': NS(update=lambda: False),
   }
   full_frames = []
   for frame in range(1, 101):

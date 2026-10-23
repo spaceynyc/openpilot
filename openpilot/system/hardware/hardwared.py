@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from openpilot.starpilot.drive_state.owner import DriveStateOwner
+from openpilot.starpilot.drive_state.park_offroad import ParkOffroad
 from openpilot.starpilot.drive_state.resolver import Mode, effective_onroad, should_start as resolve_start
 from openpilot.starpilot.storage import starpilot_storage_root
 from collections import OrderedDict, namedtuple
@@ -267,6 +268,7 @@ def hardware_thread(end_event, hw_queue) -> None:
   params = Params()
   drive_state = DriveStateOwner(params, starpilot_storage_root() / "drive-state")
   drive_mode = Mode.AUTO
+  park_offroad = ParkOffroad(params)
   physical_ignition_prev = None
   requested_onroad_prev = None
   power_monitor = PowerMonitoring()
@@ -316,6 +318,9 @@ def hardware_thread(end_event, hw_queue) -> None:
       physical_ignition_prev = physical_ignition
     if sm.frame % round(SERVICE_LIST['pandaStates'].frequency * DT_HW) == 0:
       drive_mode = drive_state.snapshot().mode
+    # Auto mode goes offroad while parked (Insight); a forced Onroad or Offroad still wins
+    parked = park_offroad.update()
+    onroad_conditions["not_parked"] = drive_mode != Mode.AUTO or not parked
     requested_onroad = effective_onroad(drive_mode, onroad_conditions)
     request_edge = requested_onroad_prev is not None and requested_onroad != requested_onroad_prev
     requested_onroad_prev = requested_onroad
