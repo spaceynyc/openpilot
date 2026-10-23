@@ -88,6 +88,11 @@ def draw_lead_icon(rect: rl.Rectangle) -> None:
   _line(cx - 4, cy + 9, cx + 4, cy + 9, rl.Color(20, 24, 27, 255), 2)
 
 
+# The MAX block's shadow is centered 81 px in from the left edge; the current speed mirrors it on the right edge of
+# the 476 px road view, where the speed-limit sign sits by default.
+CURRENT_SPEED_CENTER_X = 476 - 81
+
+
 class CompactHudRenderer:
   """Transient compact MAX, detached speed-limit sign and native steering wheel."""
 
@@ -129,8 +134,33 @@ class CompactHudRenderer:
 
   def render(self, state: OnroadState) -> None:
     self._speed_limit_sign(state)
-    self.render_max_speed(state)
+    self.render_speeds(state)
     self.render_steering_wheel(state)
+
+  def render_speeds(self, state: OnroadState) -> None:
+    self.render_max_speed(state)
+    self.render_current_speed(state)
+
+  def render_current_speed(self, state: OnroadState) -> None:
+    """The current speed, always shown, styled like MAX and mirrored to the top right of the road view."""
+    if state.speed_mps is None or not placement(state.customization, "compact", "max_speed")["enabled"]:
+      return
+    speed = str(round(state.speed_mps * (3.6 if state.metric else 2.2369362921)))
+    unit = "KM/H" if state.metric else "MPH"
+    cx = CURRENT_SPEED_CENTER_X
+    shadow = rl.Color(0, 0, 0, 255 // 2)
+    try:
+      rl.draw_circle_gradient(rl.Vector2(cx, 81), 81, shadow, rl.BLANK)
+    except (RuntimeError, TypeError):
+      rl.draw_circle_gradient(int(cx), 81, 81, shadow, rl.BLANK)
+    red, green, blue, alpha = rgba(state.customization, "text", "compact", "max_speed")
+    color = rl.Color(red, green, blue, int(alpha * 0.9))
+    speed_size = 112
+    while speed_size > 72 and self.fonts.measure(speed, FontRole.SET_SPEED, speed_size).width > 128:
+      speed_size -= 1
+    self.fonts.draw(speed, FontRole.SET_SPEED, speed_size, cx - self.fonts.measure(speed, FontRole.SET_SPEED, speed_size).width / 2,
+                    -4, color)
+    self.fonts.draw(unit, FontRole.SEMI_BOLD, 36, cx - self.fonts.measure(unit, FontRole.SEMI_BOLD, 36).width / 2, 109, color)
 
   def render_max_speed(self, state: OnroadState) -> None:
     set_speed_alpha = self._set_speed_opacity(state, (state.observed_ns or time.monotonic_ns()))

@@ -318,7 +318,7 @@ class OnroadView:
     else:
       if state.alert.size == AlertSize.NONE and not driver_camera:
         submit("speed_limit", lambda: self.compact_hud._speed_limit_sign(state))
-        submit("max_speed", lambda: self.compact_hud.render_max_speed(state))
+        submit("max_speed", lambda: self.compact_hud.render_speeds(state))
         submit("steering_wheel", lambda: self.compact_hud.render_steering_wheel(state))
         submit("speed_limit_actions", lambda: self._slc_actions(state))
         if placement(state.customization, profile, "torque_bar")["enabled"]:
