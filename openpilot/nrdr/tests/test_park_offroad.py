@@ -83,4 +83,6 @@ def test_only_an_insight_turns_it_on():
 
   assert _insight(Params(car.CarParams.new_message(carFingerprint="HONDA_INSIGHT").to_bytes()))
   assert not _insight(Params(car.CarParams.new_message(carFingerprint="HONDA_CIVIC_BOSCH").to_bytes()))
+  # openpilot longitudinal: never, a radar left silenced at offroad latches VSA faults
+  assert not _insight(Params(car.CarParams.new_message(carFingerprint="HONDA_INSIGHT", openpilotLongitudinalControl=True).to_bytes()))
   assert not _insight(Params(None))

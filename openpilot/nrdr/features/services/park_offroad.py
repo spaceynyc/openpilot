@@ -21,7 +21,9 @@ def _insight(params) -> bool:
   if cp_bytes is None:
     return False
   with car.CarParams.from_bytes(cp_bytes) as CP:
-    return CP.carFingerprint == INSIGHT
+    # with openpilot longitudinal the radar is silenced, and dropping offroad without handing it back latches VSA
+    # faults (Brake System, Cruise Fault) until the next ignition cycle, so only stock ACC goes offroad in Park
+    return CP.carFingerprint == INSIGHT and not CP.openpilotLongitudinalControl
 
 
 class ParkOffroad:
