@@ -326,9 +326,14 @@ static bool honda_tx_hook(const CANPacket_t *msg) {
     }
   }
 
-  // Only tester present ("\x02\x3E\x80\x00\x00\x00\x00\x00") allowed on diagnostics address
+  // Only tester present ("\x02\x3E\x80\x00\x00\x00\x00\x00") allowed on diagnostics address, plus the two
+  // requests CarController uses to silence the radar once the relay is open: extended diagnostic session
+  // ("\x02\x10\x03") and suppressed-response CommunicationControl disableRxAndTx ("\x03\x28\x83\x03").
+  // Silencing it from CarInterface.init() under the ELM327 mode raced the safety-mode switch and left the VSA
+  // without ACC_CONTROL long enough to latch BRAKE_ERROR. Re-enabling the radar stays blocked.
   if (msg->addr == 0x18DAB0F1U) {
-    if (GET_BYTES_64_LE(msg, 0, 8) != 0x0000000000803E02ULL) {
+    const uint64_t diag = GET_BYTES_64_LE(msg, 0, 8);
+    if ((diag != 0x0000000000803E02ULL) && (diag != 0x0000000000031002ULL) && (diag != 0x0000000003832803ULL)) {
       tx = false;
     }
   }

@@ -7,7 +7,7 @@ from opendbc.car.honda.accord_mvl_stock import AccordMvlStock, qualified as mvl_
 from opendbc.car.honda.modified_civic_steering import ModifiedCivicSteering
 from opendbc.car.honda.nidec_interceptor import NidecInterceptor, create_command, qualified as interceptor_qualified
 from opendbc.car.honda.bosch_longitudinal import BoschLongitudinal, qualified as bosch_long_qualified
-from opendbc.car.honda.values import CAR, CruiseButtons, HondaFlags, CarControllerParams
+from opendbc.car.honda.values import CAR, CruiseButtons, HondaFlags, CarControllerParams, deferred_radar_disable
 from opendbc.car.interfaces import CarControllerBase
 
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -118,6 +118,7 @@ class CarController(CarControllerBase):
     self.gas = 0.0
     self.brake = 0.0
     self.last_torque = 0.0
+    self.radar_disable_counter = 0
 
   def update(self, CC, CS, now_nanos):
     _projection = self.learning_projection_observer
@@ -169,8 +170,21 @@ class CarController(CarControllerBase):
     # Send CAN commands
     can_sends = []
 
+    # Deferred radar disable: silence the radar only once the relay is open, so it keeps feeding the VSA right up
+    # to the switchover and our ACC_CONTROL starts within a few frames of it going quiet (see CS.stock_acc_alive)
+    radar_still_stock = deferred_radar_disable(self.CP) and CS.stock_acc_alive
+    if radar_still_stock:
+      if CS.relay_open:
+        if self.radar_disable_counter % 50 == 0:
+          # UDS extended diagnostic session, required before CommunicationControl
+          can_sends.append((0x18DAB0F1, b'\x02\x10\x03\x00\x00\x00\x00\x00', self.CAN.pt))
+        elif self.radar_disable_counter % 50 == 5:
+          # UDS CommunicationControl disableRxAndTx (0x80 suppresses the response), retried every 0.5 s
+          can_sends.append((0x18DAB0F1, b'\x03\x28\x83\x03\x00\x00\x00\x00', self.CAN.pt))
+        self.radar_disable_counter += 1
+
     # tester present - w/ no response (keeps radar disabled)
-    if self.CP.flags & HondaFlags.BOSCH and not (self.CP.flags & HondaFlags.BOSCH_RADARLESS) and self.CP.openpilotLongitudinalControl:
+    elif self.CP.flags & HondaFlags.BOSCH and not (self.CP.flags & HondaFlags.BOSCH_RADARLESS) and self.CP.openpilotLongitudinalControl:
       if self.frame % 10 == 0:
         can_sends.append(make_tester_present_msg(0x18DAB0F1, 1, suppress_response=True))
 
@@ -232,8 +246,10 @@ class CarController(CarControllerBase):
 
           stopping = actuators.longControlState == LongCtrlState.stopping
           self.stopping_counter = self.stopping_counter + 1 if stopping else 0
-          can_sends.extend(hondacan.create_acc_commands(self.packer, self.CAN, CC.enabled, CC.longActive, self.accel, self.gas,
-                                                        self.stopping_counter, self.CP, gas_force=gas_force, braking=braking))
+          # never overlap the stock radar's own ACC_CONTROL stream
+          if not radar_still_stock:
+            can_sends.extend(hondacan.create_acc_commands(self.packer, self.CAN, CC.enabled, CC.longActive, self.accel, self.gas,
+                                                          self.stopping_counter, self.CP, gas_force=gas_force, braking=braking))
         else:
           apply_brake = np.clip(self.brake_last - wind_brake, 0.0, 1.0)
           apply_brake = int(np.clip(apply_brake * self.params.NIDEC_BRAKE_MAX, 0, self.params.NIDEC_BRAKE_MAX - 1))
@@ -250,7 +266,8 @@ class CarController(CarControllerBase):
 
     # Send dashboard UI commands.
     if self.frame % 10 == 0:
-      if self.CP.openpilotLongitudinalControl:
+      # the radar look-alikes (ACC_HUD, RADAR_HUD, LEGACY_BRAKE_COMMAND) wait for the same handoff
+      if self.CP.openpilotLongitudinalControl and not radar_still_stock:
         # On Nidec, this also controls longitudinal positive acceleration
         can_sends.append(hondacan.create_acc_hud(self.packer, self.CAN.pt, self.CP, CC.enabled, pcm_speed, pcm_accel,
                                                  hud_control, hud_v_cruise, CS.is_metric, CS.acc_hud))
@@ -259,7 +276,7 @@ class CarController(CarControllerBase):
       can_sends.extend(hondacan.create_lkas_hud(self.packer, self.CAN.lkas, self.CP, hud_control, CC.latActive,
                                                 steering_available, alert_steer_required, CS.lkas_hud))
 
-      if self.CP.openpilotLongitudinalControl:
+      if self.CP.openpilotLongitudinalControl and not radar_still_stock:
         # TODO: combining with create_acc_hud block above will change message order and will need replay logs regenerated
         if self.CP.flags & HondaFlags.BOSCH and not (self.CP.flags & HondaFlags.BOSCH_RADARLESS):
           can_sends.append(hondacan.create_radar_hud(self.packer, self.CAN.pt))

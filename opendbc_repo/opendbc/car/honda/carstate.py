@@ -7,7 +7,7 @@ from opendbc.car import Bus, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.honda.hondacan import CanBus
 from opendbc.car.honda.values import CAR, DBC, steer_threshold, HondaFlags, CruiseButtons, CruiseSettings, \
-                                                 GearShifter, CarControllerParams
+                                                 GearShifter, CarControllerParams, deferred_radar_disable
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.dashboard_speed_limit import Tracker as LimitTracker, honda_sign, parser_expiry
 from opendbc.can.dbc import DBC as CANDBC
@@ -54,6 +54,16 @@ class CarState(CarStateBase):
     self.dash_speed_seen = False
     self.is_metric = False
     self.v_cruise_factor = 1.
+
+    # Deferred radar disable (see deferred_radar_disable): the stock radar is assumed alive until it has been
+    # silent for a few frames, and the relay is detected open once the camera's STEERING_CONTROL, which the live
+    # radar forwards onto the PT bus, stops being visible there.
+    self.stock_acc_counter = 0
+    self.stock_acc_alive = deferred_radar_disable(CP)
+    self.camera_steer_counter = 0
+    self.camera_steer_seen = False
+    self.relay_frames = 0
+    self.relay_open = False
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -245,6 +255,21 @@ class CarState(CarStateBase):
       status, speed = honda_sign(raw)
       self.dashboard_limit.update(timestamp, status, speed, valid_until_ns=expiry)
 
+    if deferred_radar_disable(self.CP):
+      # The radar sends ACC_CONTROL every 2 frames, so 4 missed frames means it has been silenced.
+      self.stock_acc_counter = 0 if len(cp.vl_all["ACC_CONTROL"]["COUNTER"]) else self.stock_acc_counter + 1
+      self.stock_acc_alive = self.stock_acc_counter < 4
+
+      # openpilot's own STEERING_CONTROL is a TX echo and is not parsed. Fall back to an open relay after 5 s
+      # in case the camera was never seen.
+      self.relay_frames += 1
+      if len(cp.vl_all["STEERING_CONTROL"]["COUNTER"]):
+        self.camera_steer_counter = 0
+        self.camera_steer_seen = True
+      else:
+        self.camera_steer_counter += 1
+      self.relay_open = (self.camera_steer_seen and self.camera_steer_counter >= 5) or self.relay_frames >= 500
+
     return ret
 
   def get_can_parsers(self, CP):
@@ -254,6 +279,9 @@ class CarState(CarStateBase):
     pt_messages = [("CAMERA_MESSAGES", math.nan)] if has_tsr and on_pt else []
     if CP.flags & HondaFlags.GAS_INTERCEPTOR:
       pt_messages.append(("GAS_SENSOR", 50))
+    if deferred_radar_disable(CP):
+      # both go silent by design (radar disabled, camera behind the open relay): NaN skips the alive checks
+      pt_messages += [("ACC_CONTROL", math.nan), ("STEERING_CONTROL", math.nan)]
     parsers = {
       Bus.pt: CANParser(dbc_name, pt_messages, CanBus(CP).pt),
       Bus.cam: CANParser(dbc_name, [("CAMERA_MESSAGES", math.nan)] if has_tsr and not on_pt else [], CanBus(CP).camera),

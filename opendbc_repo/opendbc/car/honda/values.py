@@ -522,6 +522,16 @@ def steer_threshold(CP, steering_angle_deg: float) -> float:
   return STEER_THRESHOLD.get(CP.carFingerprint, 1200)
 
 
+def deferred_radar_disable(CP) -> bool:
+  """Classic Bosch radar under openpilot longitudinal: the radar is silenced from CarController once the comma
+  relay is open, not from CarInterface.init(). init() runs while the panda is still in the ELM327 safety mode,
+  so openpilot's replacement ACC_CONTROL was blocked until the safety-mode switch landed, and when that took
+  more than ~0.1 s the VSA latched BRAKE_ERROR_1/2 (accFaulted, "Brake System" on the dash) for the drive.
+  Ported from mvl-boston/opendbc#802."""
+  return bool(CP.flags & HondaFlags.BOSCH and not (CP.flags & (HondaFlags.BOSCH_RADARLESS | HondaFlags.BOSCH_CANFD)) and
+              CP.openpilotLongitudinalControl)
+
+
 STEER_THRESHOLD = {
   # default is 1200, overrides go here
   CAR.ACURA_RDX: 400,
