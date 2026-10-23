@@ -503,6 +503,18 @@ HONDA_BOSCH = frozenset(c for c in CAR if c.config.flags & HondaFlags.BOSCH)
 HONDA_BOSCH_ALT_RADAR = frozenset(c for c in CAR if c.config.flags & HondaFlags.BOSCH_ALT_RADAR)
 HONDA_BOSCH_RADARLESS = frozenset(c for c in CAR if c.config.flags & HondaFlags.BOSCH_RADARLESS)
 HONDA_BOSCH_CANFD = frozenset(c for c in CAR if c.config.flags & HondaFlags.BOSCH_CANFD)
+
+
+def deferred_radar_disable(CP) -> bool:
+  """Classic Bosch radar under openpilot longitudinal: the radar is silenced from CarController once the panda is
+  passing our TX (our LKAS_HUD echoes as sent), not from CarInterface.init(). init() runs while the panda is still in
+  the ELM327 safety mode, so the replacement ACC_CONTROL was blocked until the safety-mode switch landed, and when that
+  took more than ~0.1 s the VSA latched BRAKE_ERROR_1/2 for the drive. CAN FD keeps its own relay-gated path: on
+  classic Bosch the live radar relays the camera's STEERING_CONTROL onto the PT bus, so that is no relay signal here."""
+  return bool(CP.flags & HondaFlags.BOSCH and not (CP.flags & (HondaFlags.BOSCH_RADARLESS | HondaFlags.BOSCH_CANFD)) and
+              CP.openpilotLongitudinalControl)
+
+
 HONDA_BOSCH_TJA_CONTROL = frozenset(c for c in CAR if c.config.flags & HondaFlags.BOSCH_TJA_CONTROL)
 HONDA_LKAS_MINSPEED_CUTOFF = frozenset(c for c in CAR if c.config.flags & HondaFlags.LKAS_MINSPEED_CUTOFF)
 HONDA_GAS_INTERCEPTOR_THRESHOLD_512 = frozenset((CAR.HONDA_ODYSSEY, CAR.HONDA_PILOT, CAR.HONDA_RIDGELINE))

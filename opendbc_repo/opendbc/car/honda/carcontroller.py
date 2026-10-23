@@ -5,7 +5,8 @@ import numpy as np
 from opendbc.can import CANPacker
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, rate_limit, make_tester_present_msg, structs
 from opendbc.car.honda import hondacan
-from opendbc.car.honda.values import CAR, HONDA_BOSCH, CarControllerParams, CruiseButtons, CruiseSettings, HondaFlags
+from opendbc.car.honda.values import CAR, HONDA_BOSCH, CarControllerParams, CruiseButtons, CruiseSettings, HondaFlags, \
+  deferred_radar_disable
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.common.pid import PIDController
 from opendbc.car.honda import lane_path
@@ -211,8 +212,11 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
     # Send CAN commands
     can_sends = []
 
+    # Classic Bosch: until the deferred disable below has silenced it, the live radar still sends its own ACC_CONTROL
+    # and look-alikes and relays the camera's STEERING_CONTROL onto the PT bus, so ours wait (see deferred_radar_disable)
+    radar_still_stock = deferred_radar_disable(self.CP) and CS.stock_acc_alive
     if self.CP.flags & HondaFlags.BOSCH and not (self.CP.flags & HondaFlags.BOSCH_RADARLESS) and self.CP.openpilotLongitudinalControl:
-      if self.CP.flags & HondaFlags.BOSCH_CANFD and CS.stock_acc_alive:
+      if (self.CP.flags & HondaFlags.BOSCH_CANFD or radar_still_stock) and CS.stock_acc_alive:
         # CAN FD: the radar is still transmitting. It is silenced from here rather than from
         # CarInterface.init(), and only once the comma relay is confirmed open: init() ran while the
         # panda was still in the ELM327 safety mode, so the replacement ACC_CONTROL stream was blocked
@@ -221,7 +225,8 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
         # With the relay already open the stock radar keeps feeding the brake module (and, via panda
         # forwarding, the camera) right up to the switchover, and the replacement stream starts within
         # a few frames of radar silence (see CS.stock_acc_alive), well inside the fault threshold.
-        if CS.canfd_relay_open:
+        # classic Bosch has no relay signal on the PT bus; there the panda passing our TX (CS.tx_live) stands in
+        if CS.canfd_relay_open if self.CP.flags & HondaFlags.BOSCH_CANFD else CS.tx_live:
           if self.radar_disable_counter % 50 == 0:
             # UDS extended diagnostic session, required before CommunicationControl
             can_sends.append((0x18DAB0F1, b'\x02\x10\x03\x00\x00\x00\x00\x00', self.CAN.pt))
@@ -289,7 +294,8 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
         can_sends.append((addr, dat, self.CAN.camera))
 
     # Send steering command.
-    can_sends.append(hondacan.create_steering_control(self.packer, self.CAN, apply_torque, lkas_active, self.tja_control))
+    if not radar_still_stock:
+      can_sends.append(hondacan.create_steering_control(self.packer, self.CAN, apply_torque, lkas_active, self.tja_control))
 
     # wind brake from air resistance decel at high speed
     wind_brake = np.interp(CS.out.vEgo, [0.0, 2.3, 35.0], [0.001, 0.002, 0.15]) * self.windfactor # not in m/s2 units
@@ -408,7 +414,7 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
           self.stopping_counter = self.stopping_counter + 1 if stopping else 0
           # CAN FD: never overlap the stock radar's own ACC_CONTROL stream; ours starts within a few
           # frames of the radar going silent (see the deferred radar disable above)
-          if not (self.CP.flags & HondaFlags.BOSCH_CANFD and CS.stock_acc_alive):
+          if not (self.CP.flags & HondaFlags.BOSCH_CANFD and CS.stock_acc_alive) and not radar_still_stock:
             can_sends.extend(hondacan.create_acc_commands(self.packer, self.CAN, CC.enabled, CC.longActive, self.accel, self.gas,
                                                           self.stopping_counter, self.CP, gas_pedal_force))
         else:
@@ -459,7 +465,7 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
         if (accel >= 0.01) and (CS.out.vEgo < 4.0) and (pcm_speed < 25.0 / 3.6):
           pcm_speed = 25.0 / 3.6
 
-      if self.CP.openpilotLongitudinalControl:
+      if self.CP.openpilotLongitudinalControl and not radar_still_stock:
         if not (self.CP.flags & HondaFlags.BOSCH_CANFD):
           # On Nidec, this also controls longitudinal positive acceleration
           can_sends.append(hondacan.create_acc_hud(self.packer, self.CAN.pt, self.CP, CC.enabled, pcm_speed, pcm_accel,
@@ -496,7 +502,7 @@ class CarController(CarControllerBase, MadsCarController, GasInterceptorCarContr
                                                 steering_available, reduced_steering, alert_steer_required, CS.lkas_hud, self.dashed_lanes,
                                                 steer_maxed, CS, lkas_state_change=lkas_state_change))
 
-      if self.CP.openpilotLongitudinalControl:
+      if self.CP.openpilotLongitudinalControl and not radar_still_stock:
         # TODO: combining with create_acc_hud block above will change message order and will need replay logs regenerated
         if self.CP.flags & HondaFlags.BOSCH and not (self.CP.flags & HondaFlags.BOSCH_RADARLESS) and not (self.CP.flags & HondaFlags.BOSCH_CANFD):
           can_sends.append(hondacan.create_radar_hud(self.packer, self.CAN.pt))

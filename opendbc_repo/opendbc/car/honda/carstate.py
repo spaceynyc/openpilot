@@ -6,7 +6,7 @@ from opendbc.car import Bus, create_button_events, structs, DT_CTRL
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.honda.hondacan import CanBus
 from opendbc.car.honda.values import (CAR, DBC, CarControllerParams, CruiseButtons, CruiseSettings,
-                                      GearShifter, HondaFlags)
+                                      GearShifter, HondaFlags, deferred_radar_disable)
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.honda.hud_objects import HudObjectTracker
 
@@ -83,6 +83,9 @@ class CarState(CarStateBase, CarStateExt):
     self.camera_steer_seen = False
     self.canfd_frames = 0
     self.canfd_relay_open = False
+    # Classic Bosch deferred radar disable: the panda is known to pass our TX once our own LKAS_HUD echoes as sent
+    # (src = pt + 128); under ELM327/noOutput it echoes as blocked. Latched for the drive.
+    self.tx_live = False
 
     # Only radarless cars have a camera that emits HUD_OBJECTS to poll for secondary vehicle locations.
     # On CAN FD cars the radar owned HUD_OBJECTS and it is disabled, so there is nothing to track.
@@ -349,6 +352,15 @@ class CarState(CarStateBase, CarStateExt):
       self.radar_5hz_tick = False
       self.radar_50hz_tick = False
 
+    if deferred_radar_disable(self.CP):
+      # same radar-alive rule as CAN FD above; the relay signal is our own TX echo (see tx_live)
+      if len(cp.vl_all.get("ACC_CONTROL", {}).get("COUNTER", [])) > 0:
+        self.stock_acc_counter = 0
+      else:
+        self.stock_acc_counter += 1
+      self.stock_acc_alive = self.stock_acc_counter < 4
+      self.tx_live = self.tx_live or len(can_parsers[Bus.loopback].vl_all["LKAS_HUD"]["COUNTER"]) > 0
+
     if self.CP.enableBsm:
       # BSM messages are on B-CAN, requires a panda forwarding B-CAN messages to CAN 0
       # more info here: https://github.com/commaai/openpilot/pull/1867
@@ -375,6 +387,9 @@ class CarState(CarStateBase, CarStateExt):
       # Both messages intentionally go silent (the radar is disabled, the camera ends up behind the
       # open relay), so subscribe with NaN frequency to skip the alive/timeout checks.
       pt_messages += [("ACC_CONTROL", float('nan')), ("STEERING_CONTROL", float('nan'))]
+    if deferred_radar_disable(CP):
+      # goes silent by design once the radar is disabled: NaN skips the alive checks
+      pt_messages.append(("ACC_CONTROL", float('nan')))
     if self.CP.flags & HondaFlags.BOSCH_RADARLESS:
       # HUD_OBJECTS is polled by the HudObjectTracker, but not every radarless camera emits it,
       # so subscribe with NaN frequency to skip the alive/timeout checks.
@@ -385,6 +400,10 @@ class CarState(CarStateBase, CarStateExt):
     }
     if CP.enableBsm:
       parsers[Bus.body] = CANParser(DBC[CP.carFingerprint][Bus.body], [], CanBus(CP).radar)
+    if deferred_radar_disable(CP):
+      # sent (not blocked) echoes of our own PT bus TX, see tx_live
+      parsers[Bus.loopback] = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS_HUD", float('nan'))], CanBus(CP).pt + 128)
+      parsers[Bus.loopback].message_states[0x33D].ignore_counter = True
     if self.CP.flags & HondaFlags.BOSCH_CANFD:
       # These radar tick-reference messages are only read via vl_all, which (unlike vl) does not
       # auto-subscribe messages, so they must be listed explicitly or they are never parsed.

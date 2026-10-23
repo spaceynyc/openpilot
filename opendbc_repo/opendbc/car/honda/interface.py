@@ -5,7 +5,8 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.disable_ecu import disable_ecu, clear_all_dtcs, clear_ecu_dtcs
 from opendbc.car.honda.hondacan import CanBus
 from opendbc.car.honda.values import (CAR, HONDA_BOSCH, HONDA_BOSCH_A, HONDA_BOSCH_CANFD, HONDA_BOSCH_RADARLESS,
-                                      HONDA_GAS_INTERCEPTOR_THRESHOLD_512, CarControllerParams, HondaFlags, HondaSafetyFlags)
+                                      HONDA_GAS_INTERCEPTOR_THRESHOLD_512, CarControllerParams, HondaFlags, HondaSafetyFlags,
+                                      deferred_radar_disable)
 from opendbc.car.honda.carcontroller import CarController
 from opendbc.car.honda.carstate import CarState
 from opendbc.car.honda.radar_interface import RadarInterface
@@ -469,6 +470,9 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def init(CP, CP_SP, can_recv, can_send, communication_control=None):
+    if communication_control is None and deferred_radar_disable(CP):
+      # classic Bosch: silenced from CarController once the panda passes our TX (see deferred_radar_disable)
+      return
     if CP.carFingerprint in (HONDA_BOSCH - HONDA_BOSCH_RADARLESS) and CP.openpilotLongitudinalControl:
       if communication_control is None and CP.carFingerprint in HONDA_BOSCH_CANFD:
         # CAN FD: only clear DTCs here; the radar silencing itself is deferred to CarController until

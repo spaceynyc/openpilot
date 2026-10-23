@@ -630,11 +630,13 @@ class TestHondaBoschLongSafety(HondaButtonEnableBase, TestHondaBoschSafetyBase):
     not_tester_present = libsafety_py.make_CANPacket(0x18DAB0F1, self.PT_BUS, b"\x03\xAA\xAA\x00\x00\x00\x00\x00")
     self.assertFalse(self._tx(not_tester_present))
 
-    # the radar disable requests are only allowed on CAN FD
-    ext_diag = libsafety_py.make_CANPacket(0x18DAB0F1, self.PT_BUS, b"\x02\x10\x03\x00\x00\x00\x00\x00")
-    self.assertFalse(self._tx(ext_diag))
-    comm_control_disable = libsafety_py.make_CANPacket(0x18DAB0F1, self.PT_BUS, b"\x03\x28\x83\x03\x00\x00\x00\x00")
-    self.assertFalse(self._tx(comm_control_disable))
+    # the deferred radar disable (classic Bosch and CAN FD): extended session and suppressed-response disable
+    for dat in (b"\x02\x10\x03\x00\x00\x00\x00\x00", b"\x03\x28\x83\x03\x00\x00\x00\x00"):
+      self.assertTrue(self._tx(libsafety_py.make_CANPacket(0x18DAB0F1, self.PT_BUS, dat)))
+
+    # re-enabling the radar, an unsuppressed response and trailing bytes stay blocked
+    for dat in (b"\x03\x28\x80\x03\x00\x00\x00\x00", b"\x03\x28\x03\x03\x00\x00\x00\x00", b"\x02\x10\x03\x00\x00\x00\x00\x01"):
+      self.assertFalse(self._tx(libsafety_py.make_CANPacket(0x18DAB0F1, self.PT_BUS, dat)))
 
   def test_gas_safety_check(self):
     for controls_allowed in [True, False]:
